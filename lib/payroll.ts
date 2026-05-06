@@ -10,6 +10,7 @@ export interface SalaryRate {
   bonus_tier_2: number
   bonus_tier_3: number
   bonus_tier_4: number
+  valid_to?: string | null
 }
 
 export interface Session {
