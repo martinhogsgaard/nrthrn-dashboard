@@ -5,7 +5,7 @@ export default function PayrollPage() {
     <div>
       <SecLabel>Lønafregning — maj 2026</SecLabel>
       <div style={{ background:'#fff',border:'1px solid #e4e0f0',borderRadius:10,padding:32,color:'#8a85a0',fontSize:13 }}>
-        Samlet lønafregning for alle instruktører.
+        Samlet lønafregning for alle instruktører — beregnes automatisk fra holddata og lønsatser.
       </div>
     </div>
   )

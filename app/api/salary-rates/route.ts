@@ -1,9 +1,12 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
-// Opdater lønsatser for en instruktør
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!
+)
+
 export async function PUT(request: Request) {
-  const supabase = createClient()
   const body = await request.json()
   const { instructor_id, ...rates } = body
 
@@ -11,14 +14,12 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'instructor_id påkrævet' }, { status: 400 })
   }
 
-  // Luk eksisterende aktive satser
   await supabase
     .from('salary_rates')
     .update({ valid_to: new Date().toISOString().split('T')[0] })
     .eq('instructor_id', instructor_id)
     .is('valid_to', null)
 
-  // Opret nye satser
   const { data, error } = await supabase
     .from('salary_rates')
     .insert({ instructor_id, ...rates })

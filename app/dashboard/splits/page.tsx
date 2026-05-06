@@ -5,7 +5,7 @@ export default function SplitsPage() {
     <div>
       <SecLabel>Split-moms — maj 2026</SecLabel>
       <div style={{ background:'#fff',border:'1px solid #e4e0f0',borderRadius:10,padding:32,color:'#8a85a0',fontSize:13 }}>
-        Kobles til Mariana Tek API — beregner over/under 30 split automatisk.
+        Kobles til Mariana Tek API — henter fødselsdato pr. booking og beregner over/under 30 split automatisk.
       </div>
     </div>
   )

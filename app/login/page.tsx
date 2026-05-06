@@ -17,14 +17,13 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-console.log('Login result:', data, error)
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
       setError('Forkert email eller adgangskode')
       setLoading(false)
     } else {
-      window.location.href = '/dashboard/overview'
+      router.push('/dashboard/overview')
     }
   }
 

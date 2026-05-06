@@ -4,12 +4,29 @@ export default function OverviewPage() {
   return (
     <div>
       <SecLabel>Overblik — maj 2026</SecLabel>
+
+      {/* Hero */}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20, marginBottom: 20 }}>
-        <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 32, borderTop: '3px solid #6b5ca5' }}>
-          <div style={{ fontSize: 11, letterSpacing: '.2em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 8 }}>Månedlig omsætning</div>
-          <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 56, fontWeight: 700, color: '#1a1520', lineHeight: 1 }}>198.200 kr.</div>
-          <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 8 }}>Kontingenter + klipkort + sauna + drop-in ekskl. moms</div>
-          <div style={{ display: 'inline-block', marginTop: 12, padding: '5px 14px', borderRadius: 20, background: '#e8f5ef', color: '#2e8b6a', border: '1px solid #b0d8c4', fontSize: 12, fontWeight: 500 }}>↑ 7,8% vs. april 2026</div>
+        <div style={{
+          background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10,
+          padding: 32, borderTop: '3px solid #6b5ca5'
+        }}>
+          <div style={{ fontSize: 11, letterSpacing: '.2em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 8 }}>
+            Månedlig omsætning
+          </div>
+          <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 56, fontWeight: 700, color: '#1a1520', lineHeight: 1 }}>
+            198.200 kr.
+          </div>
+          <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 8 }}>
+            Kontingenter + klipkort + sauna + drop-in ekskl. moms
+          </div>
+          <div style={{
+            display: 'inline-block', marginTop: 12, padding: '5px 14px',
+            borderRadius: 20, background: '#e8f5ef', color: '#2e8b6a',
+            border: '1px solid #b0d8c4', fontSize: 12, fontWeight: 500
+          }}>
+            ↑ 7,8% vs. april 2026
+          </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 20, flex: 1 }}>
@@ -24,6 +41,8 @@ export default function OverviewPage() {
           </div>
         </div>
       </div>
+
+      {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
         <KpiCard label="Aktive medlemmer" value="412" sub="↑ 18 nye denne måned" subColor="green" />
         <KpiCard label="Kontingentindtægt (MRR)" value="182.400 kr." sub="Løbende månedlige abonnementer" />
@@ -32,6 +51,8 @@ export default function OverviewPage() {
         <KpiCard label="Inaktive (+30 dage)" value="38" sub="Churn-risiko" subColor="red" />
         <KpiCard label="Split-moms %" value="58,5%" sub="Over 30 af hold-deltagere" />
       </div>
+
+      {/* Alerts */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <Card title="Top 3 hold">
           {[

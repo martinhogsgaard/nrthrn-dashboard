@@ -1,16 +1,17 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
-export async function GET() {
-  const supabase = createClient()
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!
+)
 
+export async function GET() {
   const { data, error } = await supabase
     .from('instructors')
     .select(`
       *,
-      salary_rates (
-        *
-      )
+      salary_rates (*)
     `)
     .eq('is_active', true)
     .order('name')
@@ -20,7 +21,6 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const supabase = createClient()
   const body = await request.json()
 
   const { data, error } = await supabase

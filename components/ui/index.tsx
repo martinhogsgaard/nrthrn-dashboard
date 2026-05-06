@@ -1,3 +1,5 @@
+// Delte UI komponenter til dashboard
+
 export function KpiCard({
   label, value, sub, subColor
 }: {
@@ -27,7 +29,12 @@ export function KpiCard({
   )
 }
 
-export function Card({ title, children }: { title?: string, children: React.ReactNode }) {
+export function Card({
+  title, children
+}: {
+  title?: string
+  children: React.ReactNode
+}) {
   return (
     <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
       {title && (
@@ -56,10 +63,10 @@ export function SecLabel({ children }: { children: React.ReactNode }) {
 
 export function Badge({ children, type }: { children: React.ReactNode, type: 'junior' | 'senior' | 'employed' | 'freelance' }) {
   const styles = {
-    junior:    { bg: '#e8f5ef', color: '#2e8b6a', border: '#b0d8c4' },
-    senior:    { bg: '#f2f0f9', color: '#6b5ca5', border: '#d0c8e8' },
-    employed:  { bg: '#eef0f8', color: '#5060a0', border: '#c0c8e8' },
-    freelance: { bg: '#fff3d4', color: '#9a6200', border: '#f0d080' },
+    junior:   { bg: '#e8f5ef', color: '#2e8b6a', border: '#b0d8c4' },
+    senior:   { bg: '#f2f0f9', color: '#6b5ca5', border: '#d0c8e8' },
+    employed: { bg: '#eef0f8', color: '#5060a0', border: '#c0c8e8' },
+    freelance:{ bg: '#fff3d4', color: '#9a6200', border: '#f0d080' },
   }
   const s = styles[type]
   return (

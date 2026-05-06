@@ -4,7 +4,8 @@
 
 const MT_API_KEY = process.env.MARIANA_TEK_API_KEY
 const MT_SUBDOMAIN = process.env.MARIANA_TEK_SUBDOMAIN
-const MT_BASE_URL = https://nrthrnstrong.marianatek.com/api
+const MT_BASE_URL = `https://${MT_SUBDOMAIN}.marianatek.com/api`
+
 const IS_LIVE = !!(MT_API_KEY && MT_SUBDOMAIN)
 
 function getHeaders() {
