@@ -57,7 +57,8 @@ export async function getClassSessions(
   }
 
   const res = await fetch(
-`${MT_BASE_URL}/class_sessions?min_date=${startDate}&max_date=${endDate}`    { headers: getHeaders() }
+`${MT_BASE_URL}/class_sessions?min_date=${startDate}&max_date=${endDate}`,
+    { headers: getHeaders() }
   )
 
   if (!res.ok) throw new Error(`Mariana Tek API fejl: ${res.status}`)
