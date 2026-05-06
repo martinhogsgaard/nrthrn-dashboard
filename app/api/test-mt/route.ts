@@ -6,7 +6,7 @@ export async function GET(request: Request) {
   const end = searchParams.get('end') || '2026-05-06'
 
   const res = await fetch(
-    `https://nrthrnstrong.marianatek.com/api/class_sessions?start_date=${start}&end_date=${end}`,
+    `https://nrthrnstrong.marianatek.com/api/class_sessions?min_date=${start}&max_date=${end}`,
     {
       headers: {
         'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`,
