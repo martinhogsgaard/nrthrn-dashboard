@@ -8,7 +8,7 @@ export async function GET(request: Request) {
   const startDate = searchParams.get('start') || new Date().toISOString().split('T')[0]
   const endDate = searchParams.get('end') || new Date().toISOString().split('T')[0]
 
-  const supabase = createClient()
+  const supabase = await createClient()
 
   // Hent instruktører med lønsatser fra Supabase
   const { data: instructors, error } = await supabase
