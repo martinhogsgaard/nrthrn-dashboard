@@ -25,21 +25,37 @@ export async function proxy(request: NextRequest) {
     }
   )
 
+  // VIGTIGT: Brug getUser() ikke getSession()
+  // getUser() validerer token med Supabase server — sikker mod forfalskede cookies
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Ikke logget ind og forsøger at tilgå dashboard → send til login
-  if (!user && request.nextUrl.pathname.startsWith('/dashboard')) {
-    return NextResponse.redirect(new URL('/login', request.url))
+  const isLoginPage = request.nextUrl.pathname === '/login'
+  const isDashboard = request.nextUrl.pathname.startsWith('/dashboard')
+  const isApi = request.nextUrl.pathname.startsWith('/api')
+
+  // API routes behøver ikke redirect — de håndterer auth selv
+  if (isApi) return supabaseResponse
+
+  // Ikke logget ind og forsøger at tilgå dashboard
+  if (!user && isDashboard) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    return NextResponse.redirect(url)
   }
 
-  // Logget ind og forsøger at tilgå login → send til dashboard
-  if (user && request.nextUrl.pathname === '/login') {
-    return NextResponse.redirect(new URL('/dashboard/overview', request.url))
+  // Logget ind og på login-siden
+  if (user && isLoginPage) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard/overview'
+    return NextResponse.redirect(url)
   }
 
+  // VIGTIGT: Returner supabaseResponse så cookies bliver sat korrekt
   return supabaseResponse
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/login'],
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
 }
