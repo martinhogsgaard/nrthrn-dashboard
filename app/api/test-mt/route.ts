@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 
-export async function GET(request: Request) {
+export async function GET() {
   const res = await fetch(
-    `https://nrthrnstrong.marianatek.com/api/users/41041`,
+    `https://nrthrnstrong.marianatek.com/api/employee_public_profiles?per_page=100`,
     {
       headers: {
         'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`,
@@ -11,5 +11,10 @@ export async function GET(request: Request) {
     }
   )
   const data = await res.json()
-  return NextResponse.json({ status: res.status, data })
+  const names = data.data?.map((p: any) => ({
+    id: p.id,
+    name: p.attributes.schedule_display_name,
+    employee_id: p.relationships.employee?.data?.id
+  }))
+  return NextResponse.json({ count: data.meta?.pagination?.count, names })
 }
