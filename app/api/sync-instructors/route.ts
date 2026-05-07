@@ -62,7 +62,7 @@ export async function GET() {
     })
   )
 
-  const validInstructors = instructorsToUpsert.filter(Boolean)
+  const validInstructors = instructorsToUpsert.filter((i): i is NonNullable<typeof i> => i !== null)
 
   // 3. Tilføj birth_date kolonne hvis den ikke findes
   const { error } = await supabase
