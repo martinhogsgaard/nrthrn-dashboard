@@ -32,6 +32,9 @@ export default function SetupPage() {
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<string | null>(null)
   const [saving, setSaving] = useState<string | null>(null)
+  const [memberSyncing, setMemberSyncing] = useState(false)
+const [memberSyncProgress, setMemberSyncProgress] = useState('')
+const [memberSyncResult, setMemberSyncResult] = useState<string | null>(null)
 
   useEffect(() => {
     loadData()
@@ -61,7 +64,27 @@ export default function SetupPage() {
     setSyncResult(`✓ ${data.synced} instruktører synkroniseret fra Mariana Tek`)
     loadData()
   }
-
+async function syncMembers() {
+  setMemberSyncing(true)
+  setMemberSyncResult(null)
+  const start = (document.getElementById('sync-start') as HTMLInputElement).value
+  const end = (document.getElementById('sync-end') as HTMLInputElement).value
+  const res = await fetch(`/api/classes?start=${start}&end=${end}&location=48718`)
+  const data = await res.json()
+  const sessions = data.sessions || []
+  let totalSynced = 0
+  let totalSkipped = 0
+  for (let i = 0; i < sessions.length; i++) {
+    setMemberSyncProgress(`(${i + 1}/${sessions.length})`)
+    const syncRes = await fetch(`/api/sync-members?session_id=${sessions[i].id}`)
+    const syncData = await syncRes.json()
+    totalSynced += syncData.synced || 0
+    totalSkipped += syncData.skipped || 0
+  }
+  setMemberSyncing(false)
+  setMemberSyncProgress('')
+  setMemberSyncResult(`✓ ${totalSynced} nye · ${totalSkipped} allerede kendte`)
+}
   async function updateInstructor(id: string, updates: Partial<Instructor>) {
     setSaving(id)
     await fetch(`/api/instructors/${id}`, {
@@ -116,6 +139,22 @@ export default function SetupPage() {
             </button>
           </div>
         </div>
+        <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #e4e0f0' }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1520', marginBottom: 4 }}>Synkroniser fødselsdatoer fra bookinger</div>
+        <div style={{ fontSize: 12, color: '#8a85a0', marginBottom: 12 }}>Henter fødselsdato for alle deltagere i den valgte periode. Kør én gang om måneden.</div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input type="date" id="sync-start" defaultValue="2026-05-01"
+            style={{ padding: '6px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 12, fontFamily: 'Inter, sans-serif' }} />
+          <span style={{ color: '#8a85a0' }}>→</span>
+          <input type="date" id="sync-end" defaultValue="2026-05-31"
+            style={{ padding: '6px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 12, fontFamily: 'Inter, sans-serif' }} />
+          <button onClick={syncMembers} disabled={memberSyncing}
+            style={{ background: memberSyncing ? '#8b7bc5' : '#2e8b6a', border: 'none', color: '#fff', padding: '9px 24px', borderRadius: 24, cursor: memberSyncing ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase' as const }}>
+            {memberSyncing ? `Synkroniserer... ${memberSyncProgress}` : '↻ Sync fødselsdatoer'}
+          </button>
+          {memberSyncResult && <span style={{ fontSize: 11, color: '#2e8b6a', fontWeight: 500 }}>{memberSyncResult}</span>}
+        </div>
+      </div>
       </Card>
 
       <div style={{ marginTop: 24 }}>
