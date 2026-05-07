@@ -10,6 +10,7 @@ const NAV = [
   { href: '/dashboard/members',      label: 'Medlemmer' },
   { href: '/dashboard/instructors',  label: 'Instruktører' },
   { href: '/dashboard/payroll',      label: 'Løn' },
+  { href: '/dashboard/setup',        label: 'Opsætning' },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
