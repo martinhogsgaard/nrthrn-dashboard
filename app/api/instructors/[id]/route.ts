@@ -8,13 +8,14 @@ const supabase = createClient(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
   const body = await request.json()
   const { data, error } = await supabase
     .from('instructors')
     .update(body)
-    .eq('id', params.id)
+    .eq('id', id)
     .select()
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
