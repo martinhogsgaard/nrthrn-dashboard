@@ -35,7 +35,7 @@ export async function GET() {
   let page = 1
   let totalPages = 1
 
-  while (page <= totalPages && page <= 15) {
+  while (page <= totalPages) {
     const res = await fetch(
       `https://nrthrnstrong.marianatek.com/api/membership_transactions?per_page=100&page=${page}`,
       { headers: MT_HEADERS }
