@@ -30,30 +30,32 @@ const MEMBERSHIP_PRICES: Record<string, number> = {
   '3 Saunagus (Classes Membership)': 0,
 }
 
-export async function GET() {
-  let allTransactions: any[] = []
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const location = searchParams.get('location') || '48718'
+
+  // Hent aktive membership instances filtreret på lokation
+  let allInstances: any[] = []
   let page = 1
   let totalPages = 1
 
   while (page <= totalPages) {
     const res = await fetch(
-      `https://nrthrnstrong.marianatek.com/api/membership_transactions?per_page=100&page=${page}`,
+      `https://nrthrnstrong.marianatek.com/api/membership_instances?status=active&purchase_location=${location}&per_page=100&page=${page}`,
       { headers: MT_HEADERS }
     )
     const data = await res.json()
     totalPages = data.meta?.pagination?.pages || 1
-    allTransactions = [...allTransactions, ...(data.data || [])]
+    allInstances = [...allInstances, ...(data.data || [])]
+    if (page >= totalPages) break
     page++
   }
 
-  const active = allTransactions.filter((t: any) => {
-    if (!t.attributes.next_charge_date) return false
-    return new Date(t.attributes.next_charge_date) > new Date()
-  })
-
-  const grouped = active.reduce((acc: any, t: any) => {
+  // Gruppér på membership_name
+  const grouped = allInstances.reduce((acc: any, t: any) => {
     const name = t.attributes.membership_name
-    if (!acc[name]) acc[name] = { count: 0, price: MEMBERSHIP_PRICES[name] || 0 }
+    const price = parseFloat(t.attributes.renewal_rate) || MEMBERSHIP_PRICES[name] || 0
+    if (!acc[name]) acc[name] = { count: 0, price }
     acc[name].count++
     return acc
   }, {})
@@ -61,16 +63,17 @@ export async function GET() {
   const memberships = Object.entries(grouped).map(([name, data]: [string, any]) => ({
     name,
     count: data.count,
-    price: data.price,
-    mrr: data.count * data.price,
+    price: Math.round(data.price),
+    mrr: Math.round(data.count * data.price),
     age_group: name.includes('30+') ? 'over30' : name.includes('under 30') ? 'under30' : 'other',
   })).sort((a, b) => b.mrr - a.mrr)
 
   const totalMRR = memberships.reduce((s, m) => s + m.mrr, 0)
-  const totalMembers = active.length
+  const totalMembers = allInstances.length
   const over30Count = memberships.filter(m => m.age_group === 'over30').reduce((s, m) => s + m.count, 0)
   const under30Count = memberships.filter(m => m.age_group === 'under30').reduce((s, m) => s + m.count, 0)
 
+  // Hent aldersfordeling fra Supabase
   const { data: memberStats } = await supabase
     .from('members')
     .select('is_over_30')
