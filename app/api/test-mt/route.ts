@@ -1,22 +1,29 @@
 import { NextResponse } from 'next/server'
 
 export async function GET() {
-  // Hent alle sider
-  let allProfiles: any[] = []
-  for (let page = 1; page <= 7; page++) {
-    const res = await fetch(
-      `https://nrthrnstrong.marianatek.com/api/employee_public_profiles?per_page=10&page=${page}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`,
-          'Content-Type': 'application/json',
-        }
+  const res = await fetch(
+    `https://nrthrnstrong.marianatek.com/api/employees?per_page=100`,
+    {
+      headers: {
+        'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`,
+        'Content-Type': 'application/json',
       }
-    )
-    const data = await res.json()
-    allProfiles = [...allProfiles, ...(data.data || [])]
-  }
-
-  const names = allProfiles.map((p: any) => p.attributes.schedule_display_name)
-  return NextResponse.json({ total: allProfiles.length, names })
+    }
+  )
+  const data = await res.json()
+  
+  // Filtrer på home_location Copenhagen
+  const cphEmployees = data.data?.filter((e: any) => 
+    e.relationships.recent_location?.data?.id === '48718' ||
+    e.relationships.turfs?.data?.some((t: any) => t.id === '48718')
+  )
+  
+  return NextResponse.json({ 
+    total: data.meta?.pagination?.count,
+    cph_count: cphEmployees?.length,
+    cph_employees: cphEmployees?.map((e: any) => ({
+      employee_id: e.id,
+      profile_id: e.relationships.public_profile?.data?.id,
+    }))
+  })
 }
