@@ -48,17 +48,26 @@ export async function GET() {
       const initials = [firstName[0], lastName[0]]
         .filter(Boolean).join('').toUpperCase() || '??'
 
-      return {
-        mariana_tek_id: e.id,
-        mariana_tek_profile_id: e.relationships.public_profile?.data?.id,
-        name: fullName || 'Ukendt',
-        initials,
-        email: u?.email || null,
-        birth_date: u?.birth_date || null,
-        level: 'junior' as const,
-        employment_type: 'employed' as const,
-        is_active: e.attributes.is_active ?? true,
-      }
+      // Find lokation baseret på home_location fra user
+const homeLocationMTId = userData.data?.relationships?.home_location?.data?.id
+const { data: locationData } = await supabase
+  .from('locations')
+  .select('id')
+  .eq('mariana_tek_location_id', homeLocationMTId)
+  .single()
+
+return {
+  mariana_tek_id: e.id,
+  mariana_tek_profile_id: e.relationships.public_profile?.data?.id,
+  name: fullName || 'Ukendt',
+  initials,
+  email: u?.email || null,
+  birth_date: u?.birth_date || null,
+  location_id: locationData?.id || null,
+  level: 'junior' as const,
+  employment_type: 'employed' as const,
+  is_active: e.attributes.is_active ?? true,
+}
     })
   )
 
