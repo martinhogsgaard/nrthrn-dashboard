@@ -7,8 +7,7 @@ export async function GET(request: Request) {
   const location = searchParams.get('location') || '48718'
 
   const res = await fetch(
-    `https://nrthrnstrong.marianatek.com/api/class_sessions?min_date=${start}&max_date=${end}&location=${location}`,
-    {
+`https://nrthrnstrong.marianatek.com/api/reservations/3360`,    {
       headers: {
         'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`,
         'Content-Type': 'application/json',
