@@ -11,7 +11,7 @@ const MT_HEADERS = {
   'Content-Type': 'application/json',
 }
 
-function isOver30(birthDate: string | null): boolean | null {
+function calcIsOver30(birthDate: string | null): boolean | null {
   if (!birthDate) return null
   const dob = new Date(birthDate)
   const today = new Date()
@@ -21,34 +21,51 @@ function isOver30(birthDate: string | null): boolean | null {
   return age >= 30
 }
 
-export async function GET() {
-  let allMembers: any[] = []
-  let page = 1
-  let totalPages = 1
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const start = searchParams.get('start') || new Date().toISOString().split('T')[0]
+  const end = searchParams.get('end') || new Date().toISOString().split('T')[0]
 
-  // Hent alle aktive memberships
-  while (page <= totalPages) {
+  // 1. Hent alle sessions for perioden
+  let allSessions: any[] = []
+  let page = 1
+  while (true) {
     const res = await fetch(
-      `https://nrthrnstrong.marianatek.com/api/memberships?status=active&per_page=100&page=${page}`,
+      `https://nrthrnstrong.marianatek.com/api/class_sessions?min_date=${start}&max_date=${end}&location=48718&per_page=100&page=${page}`,
       { headers: MT_HEADERS }
     )
     const data = await res.json()
-    totalPages = data.meta?.pagination?.pages || 1
-    allMembers = [...allMembers, ...(data.data || [])]
-    if (page >= totalPages) break
+    if (!data.data?.length) break
+    allSessions = [...allSessions, ...data.data]
+    if (data.meta?.pagination?.pages <= page) break
     page++
   }
 
-  // Hent user-data for hver member
+  // 2. Saml unikke reservation IDs
+  const reservationIds = [...new Set(
+    allSessions.flatMap((s: any) => 
+      s.relationships?.reservations?.data?.map((r: any) => r.id) || []
+    )
+  )]
+
+  // 3. Saml unikke user IDs via reservationer
+  const processedUsers = new Set<string>()
   let synced = 0
-  let errors = 0
+  let skipped = 0
+  let no_birthdate = 0
 
-  for (const membership of allMembers) {
-    const userId = membership.relationships?.user?.data?.id
-    if (!userId) continue
-
+  for (const resId of reservationIds) {
     try {
-      // Tjek om vi allerede har dem i Supabase
+      const resRes = await fetch(
+        `https://nrthrnstrong.marianatek.com/api/reservations/${resId}`,
+        { headers: MT_HEADERS }
+      )
+      const resData = await resRes.json()
+      const userId = resData.data?.relationships?.user?.data?.id
+      if (!userId || processedUsers.has(userId)) continue
+      processedUsers.add(userId)
+
+      // Tjek om vi allerede har fødselsdato i Supabase
       const { data: existing } = await supabase
         .from('members')
         .select('id, birth_date')
@@ -56,12 +73,11 @@ export async function GET() {
         .single()
 
       if (existing?.birth_date) {
-        // Vi har allerede fødselsdato — skip
-        synced++
+        skipped++
         continue
       }
 
-      // Hent fra Mariana Tek
+      // Hent bruger fra Mariana Tek
       const userRes = await fetch(
         `https://nrthrnstrong.marianatek.com/api/users/${userId}`,
         { headers: MT_HEADERS }
@@ -69,32 +85,33 @@ export async function GET() {
       const userData = await userRes.json()
       const u = userData.data?.attributes
 
-      const memberData = {
+      if (!u?.birth_date) no_birthdate++
+
+      await supabase.from('members').upsert({
         mariana_tek_user_id: userId,
         first_name: u?.first_name,
         last_name: u?.last_name,
         email: u?.email,
         birth_date: u?.birth_date || null,
-        is_over_30: isOver30(u?.birth_date),
+        is_over_30: calcIsOver30(u?.birth_date),
         home_location_id: userData.data?.relationships?.home_location?.data?.id || null,
         is_active: true,
         joined_date: u?.date_joined ? u.date_joined.split('T')[0] : null,
-      }
-
-      await supabase
-        .from('members')
-        .upsert(memberData, { onConflict: 'mariana_tek_user_id' })
+      }, { onConflict: 'mariana_tek_user_id' })
 
       synced++
     } catch {
-      errors++
+      // Skip fejl og fortsæt
     }
   }
 
   return NextResponse.json({
-    total_memberships: allMembers.length,
+    period: { start, end },
+    sessions: allSessions.length,
+    reservations: reservationIds.length,
+    unique_users: processedUsers.size,
     synced,
-    errors,
-    message: `${synced} medlemmer synkroniseret, ${errors} fejl`
+    skipped,
+    no_birthdate,
   })
 }
