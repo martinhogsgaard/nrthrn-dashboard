@@ -6,58 +6,76 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!
 )
 
+const MT_HEADERS = {
+  'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`,
+  'Content-Type': 'application/json',
+}
+
 export async function GET() {
-  // Hent alle profiler fra Mariana Tek
-  let allProfiles: any[] = []
-  for (let page = 1; page <= 7; page++) {
+  // 1. Hent alle employees
+  let allEmployees: any[] = []
+  for (let page = 1; page <= 8; page++) {
     const res = await fetch(
-      `https://nrthrnstrong.marianatek.com/api/employee_public_profiles?per_page=10&page=${page}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`,
-          'Content-Type': 'application/json',
-        }
-      }
+      `https://nrthrnstrong.marianatek.com/api/employees?per_page=10&page=${page}`,
+      { headers: MT_HEADERS }
     )
     const data = await res.json()
-    allProfiles = [...allProfiles, ...(data.data || [])]
+    if (!data.data?.length) break
+    allEmployees = [...allEmployees, ...(data.data || [])]
   }
 
-  // Filtrer system-brugere fra
-  const systemNames = ['NRTHRN STRONG', 'service', 'NRTHRN Strong Internal', 'NRTHRN Strong WeProduct']
-  const realProfiles = allProfiles.filter(p => {
-    const name = p.attributes.schedule_display_name || ''
-    return !systemNames.some(s => name.toLowerCase().includes(s.toLowerCase())) && name.length > 1
-  })
+  // Filtrer system-brugere fra (ingen public profile)
+  const realEmployees = allEmployees.filter(e => 
+    e.relationships.public_profile?.data?.id
+  )
 
-  // Slet gamle dummy instruktører og upsert rigtige
-  const instructorsToUpsert = realProfiles.map(p => ({
-    mariana_tek_id: p.relationships.employee?.data?.id,
-    mariana_tek_profile_id: p.id,
-    name: p.attributes.schedule_display_name,
-    initials: (p.attributes.schedule_display_name || '??')
-      .split(' ')
-      .map((w: string) => w[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2),
-    level: 'junior' as const,
-    employment_type: 'employed' as const,
-    is_active: p.attributes.enabled ?? true,
-  }))
+  // 2. Hent user-data for hver instruktør
+  const instructorsToUpsert = await Promise.all(
+    realEmployees.map(async (e) => {
+      const userId = e.relationships.user?.data?.id
+      if (!userId) return null
 
-  const { data, error } = await supabase
-    .from('instructors')
-    .upsert(instructorsToUpsert, { 
-      onConflict: 'mariana_tek_id',
-      ignoreDuplicates: false 
+      const userRes = await fetch(
+        `https://nrthrnstrong.marianatek.com/api/users/${userId}`,
+        { headers: MT_HEADERS }
+      )
+      const userData = await userRes.json()
+      const u = userData.data?.attributes
+
+      const firstName = u?.first_name || ''
+      const lastName = u?.last_name || ''
+      const fullName = `${firstName} ${lastName}`.trim()
+      const initials = [firstName[0], lastName[0]]
+        .filter(Boolean).join('').toUpperCase() || '??'
+
+      return {
+        mariana_tek_id: e.id,
+        mariana_tek_profile_id: e.relationships.public_profile?.data?.id,
+        name: fullName || 'Ukendt',
+        initials,
+        email: u?.email || null,
+        birth_date: u?.birth_date || null,
+        level: 'junior' as const,
+        employment_type: 'employed' as const,
+        is_active: e.attributes.is_active ?? true,
+      }
     })
-    .select()
+  )
+
+  const validInstructors = instructorsToUpsert.filter(Boolean)
+
+  // 3. Tilføj birth_date kolonne hvis den ikke findes
+  const { error } = await supabase
+    .from('instructors')
+    .upsert(validInstructors, {
+      onConflict: 'mariana_tek_id',
+      ignoreDuplicates: false
+    })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ 
-    synced: instructorsToUpsert.length,
-    names: instructorsToUpsert.map(i => i.name)
+  return NextResponse.json({
+    synced: validInstructors.length,
+    names: validInstructors.map(i => `${i?.name} (${i?.email || 'ingen email'})`)
   })
 }
