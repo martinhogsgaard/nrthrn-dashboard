@@ -23,93 +23,91 @@ function calcIsOver30(birthDate: string | null): boolean | null {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const start = searchParams.get('start') || new Date().toISOString().split('T')[0]
-  const end = searchParams.get('end') || new Date().toISOString().split('T')[0]
+  const sessionId = searchParams.get('session_id')
 
-  // 1. Hent alle sessions for perioden
-  let allSessions: any[] = []
-  let page = 1
-  while (true) {
-    const res = await fetch(
-      `https://nrthrnstrong.marianatek.com/api/class_sessions?min_date=${start}&max_date=${end}&location=48718&per_page=100&page=${page}`,
-      { headers: MT_HEADERS }
-    )
-    const data = await res.json()
-    if (!data.data?.length) break
-    allSessions = [...allSessions, ...data.data]
-    if (data.meta?.pagination?.pages <= page) break
-    page++
+  if (!sessionId) {
+    return NextResponse.json({ error: 'session_id påkrævet' }, { status: 400 })
   }
 
-  // 2. Saml unikke reservation IDs
-  const reservationIds = [...new Set(
-    allSessions.flatMap((s: any) => 
-      s.relationships?.reservations?.data?.map((r: any) => r.id) || []
-    )
-  )]
+  // Hent session
+  const sessRes = await fetch(
+    `https://nrthrnstrong.marianatek.com/api/class_sessions/${sessionId}`,
+    { headers: MT_HEADERS }
+  )
+  const sessData = await sessRes.json()
+  const reservationIds = sessData.data?.relationships?.reservations?.data?.map((r: any) => r.id) || []
 
-  // 3. Saml unikke user IDs via reservationer
   const processedUsers = new Set<string>()
   let synced = 0
   let skipped = 0
   let no_birthdate = 0
 
-  for (const resId of reservationIds) {
-    try {
-      const resRes = await fetch(
-        `https://nrthrnstrong.marianatek.com/api/reservations/${resId}`,
-        { headers: MT_HEADERS }
-      )
-      const resData = await resRes.json()
-      const userId = resData.data?.relationships?.user?.data?.id
-      if (!userId || processedUsers.has(userId)) continue
-      processedUsers.add(userId)
+  // Hent alle reservationer parallelt
+  const reservationPromises = reservationIds.map((resId: string) =>
+    fetch(`https://nrthrnstrong.marianatek.com/api/reservations/${resId}`, { headers: MT_HEADERS })
+      .then(r => r.json())
+      .catch(() => null)
+  )
+  const reservations = await Promise.all(reservationPromises)
 
-      // Tjek om vi allerede har fødselsdato i Supabase
-      const { data: existing } = await supabase
-        .from('members')
-        .select('id, birth_date')
-        .eq('mariana_tek_user_id', userId)
-        .single()
+  // Saml unikke user IDs
+  const userIds = [...new Set(
+    reservations
+      .filter(Boolean)
+      .map((r: any) => r.data?.relationships?.user?.data?.id)
+      .filter(Boolean)
+  )] as string[]
 
-      if (existing?.birth_date) {
-        skipped++
-        continue
-      }
+  // Tjek hvilke vi allerede har
+  const { data: existing } = await supabase
+    .from('members')
+    .select('mariana_tek_user_id, birth_date')
+    .in('mariana_tek_user_id', userIds)
 
-      // Hent bruger fra Mariana Tek
-      const userRes = await fetch(
-        `https://nrthrnstrong.marianatek.com/api/users/${userId}`,
-        { headers: MT_HEADERS }
-      )
-      const userData = await userRes.json()
-      const u = userData.data?.attributes
+  const existingWithDOB = new Set(
+    existing?.filter(e => e.birth_date).map(e => e.mariana_tek_user_id) || []
+  )
 
-      if (!u?.birth_date) no_birthdate++
+  // Hent kun dem vi ikke kender
+  const newUserIds = userIds.filter(id => !existingWithDOB.has(id))
 
-      await supabase.from('members').upsert({
-        mariana_tek_user_id: userId,
-        first_name: u?.first_name,
-        last_name: u?.last_name,
-        email: u?.email,
-        birth_date: u?.birth_date || null,
-        is_over_30: calcIsOver30(u?.birth_date),
-        home_location_id: userData.data?.relationships?.home_location?.data?.id || null,
+  const userPromises = newUserIds.map((userId: string) =>
+    fetch(`https://nrthrnstrong.marianatek.com/api/users/${userId}`, { headers: MT_HEADERS })
+      .then(r => r.json())
+      .then(data => ({ userId, data }))
+      .catch(() => null)
+  )
+  const users = await Promise.all(userPromises)
+
+  // Gem i Supabase
+  const toUpsert = users
+    .filter(Boolean)
+    .map((u: any) => {
+      const attrs = u.data?.data?.attributes
+      if (!attrs?.birth_date) no_birthdate++
+      return {
+        mariana_tek_user_id: u.userId,
+        first_name: attrs?.first_name,
+        last_name: attrs?.last_name,
+        email: attrs?.email,
+        birth_date: attrs?.birth_date || null,
+        is_over_30: calcIsOver30(attrs?.birth_date),
+        home_location_id: u.data?.data?.relationships?.home_location?.data?.id || null,
         is_active: true,
-        joined_date: u?.date_joined ? u.date_joined.split('T')[0] : null,
-      }, { onConflict: 'mariana_tek_user_id' })
+        joined_date: attrs?.date_joined ? attrs.date_joined.split('T')[0] : null,
+      }
+    })
 
-      synced++
-    } catch {
-      // Skip fejl og fortsæt
-    }
+  if (toUpsert.length > 0) {
+    await supabase.from('members').upsert(toUpsert, { onConflict: 'mariana_tek_user_id' })
+    synced = toUpsert.length
   }
 
+  skipped = userIds.length - newUserIds.length
+
   return NextResponse.json({
-    period: { start, end },
-    sessions: allSessions.length,
+    session_id: sessionId,
     reservations: reservationIds.length,
-    unique_users: processedUsers.size,
     synced,
     skipped,
     no_birthdate,
