@@ -23,7 +23,7 @@ export default function LoginPage() {
       setError('Forkert email eller adgangskode')
       setLoading(false)
     } else {
-      router.push('/dashboard/overview')
+      window.location.href = '/dashboard/overview'
     }
   }
 
