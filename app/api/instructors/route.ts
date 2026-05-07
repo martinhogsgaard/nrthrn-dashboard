@@ -6,15 +6,20 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!
 )
 
-export async function GET() {
-  const { data, error } = await supabase
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const all = searchParams.get('all') === 'true'
+
+  let query = supabase
     .from('instructors')
-    .select(`
-      *,
-      salary_rates (*)
-    `)
-    .eq('is_active', true)
+    .select('*, salary_rates(*)')
     .order('name')
+
+  if (!all) {
+    query = query.eq('is_active', true)
+  }
+
+  const { data, error } = await query
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
@@ -22,13 +27,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const body = await request.json()
-
   const { data, error } = await supabase
     .from('instructors')
     .insert(body)
     .select()
     .single()
-
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }

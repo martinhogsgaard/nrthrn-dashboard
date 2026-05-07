@@ -38,7 +38,7 @@ export default function SetupPage() {
   async function loadData() {
     setLoading(true)
     const [instrRes, locRes] = await Promise.all([
-      fetch('/api/instructors'),
+      fetch('/api/instructors?all=true'),
       fetch('/api/locations'),
     ])
     const [instrData, locData] = await Promise.all([
