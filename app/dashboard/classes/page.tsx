@@ -16,7 +16,7 @@ interface ClassSession {
 
 function getCurrentMonthRange() {
   const now = new Date()
-  const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+  const start = now.toISOString().split('T')[0]
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
   return { start, end }
 }
@@ -44,9 +44,10 @@ export default function ClassesPage() {
   )
 
   const totalParticipants = filtered.reduce((s, x) => s + x.participants, 0)
-  const avgBelægning = filtered.length > 0
-    ? Math.round(filtered.reduce((s, x) => s + (x.participants / x.capacity * 100), 0) / filtered.length)
-    : 0
+  const sessionsWithCapacity = filtered.filter(x => x.capacity > 0)
+const avgBelægning = sessionsWithCapacity.length > 0
+  ? Math.round(sessionsWithCapacity.reduce((s, x) => s + (x.participants / x.capacity * 100), 0) / sessionsWithCapacity.length)
+  : 0
 
   // Gruppér efter dato
   const byDate = filtered.reduce((acc, s) => {
