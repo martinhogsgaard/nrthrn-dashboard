@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   const res = await fetch(
-    `https://nrthrnstrong.marianatek.com/api/employee_public_profiles?per_page=100`,
+    `https://nrthrnstrong.marianatek.com/api/employee_public_profiles?per_page=100&location=48718`,
     {
       headers: {
         'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`,
