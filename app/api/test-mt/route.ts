@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server'
 
 export async function GET() {
-  // Hent user med included relationships
   const res = await fetch(
-    `https://nrthrnstrong.marianatek.com/api/users/40996?include=memberships`,
+    `https://nrthrnstrong.marianatek.com/api/credit_accounts?user=40996`,
     {
       headers: {
         'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`,
