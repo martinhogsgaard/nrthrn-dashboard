@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server'
 
 export async function GET() {
-  // Hent alle profiler og find Massimiliano
   const res = await fetch(
-    `https://nrthrnstrong.marianatek.com/api/employee_public_profiles?per_page=100&page=4`,
+    `https://nrthrnstrong.marianatek.com/api/users?per_page=3`,
     {
       headers: {
         'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`,
@@ -12,22 +11,8 @@ export async function GET() {
     }
   )
   const data = await res.json()
-  const mass = data.data?.find((p: any) => 
-    p.attributes.schedule_display_name === 'Massimiliano'
-  )
-  
-  if (!mass) return NextResponse.json({ error: 'Not found', names: data.data?.map((p:any) => p.attributes.schedule_display_name) })
-  
-  // Hent employee data
-  const empRes = await fetch(
-    `https://nrthrnstrong.marianatek.com/api/employees/${mass.relationships.employee?.data?.id}`,
-    {
-      headers: {
-        'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`,
-        'Content-Type': 'application/json',
-      }
-    }
-  )
-  const empData = await empRes.json()
-  return NextResponse.json({ profile: mass, employee: empData.data })
+  return NextResponse.json({ 
+    count: data.meta?.pagination?.count,
+    first: data.data?.[0]
+  })
 }
