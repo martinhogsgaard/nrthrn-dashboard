@@ -20,6 +20,8 @@ interface Instructor {
   is_active: boolean
   location_id: string | null
   mariana_tek_id: string
+  email?: string | null
+  birth_date?: string | null
   salary_rates?: any[]
 }
 
@@ -200,6 +202,9 @@ function InstructorCard({ instructor: i, locations, saving, onUpdate }: {
         </div>
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1520' }}>{i.name}</div>
+{i.email && <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 2 }}>{i.email}</div>}
+{i.birth_date && <div style={{ fontSize: 11, color: '#2e8b6a', marginTop: 1 }}>🎂 {i.birth_date}</div>}
+{!i.birth_date && <div style={{ fontSize: 11, color: '#c0392b', marginTop: 1 }}>Ingen fødselsdato</div>}
           <div style={{ display: 'flex', gap: 5, marginTop: 4, flexWrap: 'wrap' }}>
             <Badge type={i.level}>{i.level === 'junior' ? 'Junior' : 'Senior'}</Badge>
             <Badge type={i.employment_type}>{i.employment_type === 'employed' ? 'Timeansat' : 'Selvstændig'}</Badge>
