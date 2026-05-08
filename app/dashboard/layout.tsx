@@ -27,11 +27,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* DEMO BANNER */}
       <div style={{
-        background: '#fff3d4', borderBottom: '1px solid #f0d080',
-        padding: '7px 32px', fontSize: 10, color: '#9a6200',
-        letterSpacing: '.1em', textAlign: 'center', fontWeight: 500, textTransform: 'uppercase'
-      }}>
-        Demo — Fiktive tal til illustration · Kobles til Mariana Tek API for live data
       </div>
 
       {/* TOPBAR */}
