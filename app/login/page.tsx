@@ -23,7 +23,9 @@ export default function LoginPage() {
       setError('Forkert email eller adgangskode')
       setLoading(false)
     } else {
-      window.location.href = '/dashboard/overview'
+      // Vent på at session er sat i cookies
+await new Promise(resolve => setTimeout(resolve, 500))
+window.location.href = '/dashboard/overview'
     }
   }
 
