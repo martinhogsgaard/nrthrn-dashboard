@@ -23,5 +23,9 @@ export async function GET(request: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ sessions: data, total: data.length })
+ const sessions = data.map((s: any) => ({
+  ...s,
+  instructor: s.instructor_name,
+}))
+return NextResponse.json({ sessions, total: sessions.length })
 }
