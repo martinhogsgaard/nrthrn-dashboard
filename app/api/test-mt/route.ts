@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 
 export async function GET() {
+  // Hent membership instances og se om der er Bruce-typer
   const res = await fetch(
-    `https://nrthrnstrong.marianatek.com/api/membership_instances?status=active&purchase_location=48718&per_page=3`,
+    `https://nrthrnstrong.marianatek.com/api/membership_instances?per_page=10&purchase_location=48718`,
     {
       headers: {
         'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`,
@@ -11,10 +12,14 @@ export async function GET() {
     }
   )
   const data = await res.json()
-  return NextResponse.json({ 
-    status: res.status, 
-    count: data.meta?.pagination?.count,
-    first_location: data.data?.[0]?.relationships?.purchase_location?.data?.id,
-    first_name: data.data?.[0]?.attributes?.membership_name,
-  })
-}
+  
+  // Find alle unikke membership navne
+  const names = [...new Set(data.data?.map((d: any) => d.attributes.membership_name))]
+  
+  // Hent også tags på en bruger for at se om Bruce er tagget
+  const userRes = await fetch(
+    `https://nrthrnstrong.marianatek.com/api/users?per_page=5&tag=bruce`,
+    {
+      headers: {
+        'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`,
+        'Content-Type': 'application/json',
