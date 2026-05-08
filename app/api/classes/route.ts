@@ -1,9 +1,10 @@
+import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
-const MT_HEADERS = {
-  'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`,
-  'Content-Type': 'application/json',
-}
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!
+)
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -11,34 +12,16 @@ export async function GET(request: Request) {
   const end = searchParams.get('end') || new Date().toISOString().split('T')[0]
   const location = searchParams.get('location') || '48718'
 
-  let allSessions: any[] = []
-  let page = 1
-  while (true) {
-    const res = await fetch(
-      `https://nrthrnstrong.marianatek.com/api/class_sessions?min_date=${start}&max_date=${end}&location=${location}&per_page=100&page=${page}`,
-      { headers: MT_HEADERS }
-    )
-    const data = await res.json()
-    if (!data.data?.length) break
-    allSessions = [...allSessions, ...data.data]
-    if (data.meta?.pagination?.pages <= page) break
-    page++
-  }
+  const { data, error } = await supabase
+    .from('sessions_cache')
+    .select('*')
+    .eq('location_id', location)
+    .gte('date', start)
+    .lte('date', end)
+    .order('date')
+    .order('time')
 
-  const sessions = allSessions.map((s: any) => {
-    const startDT = new Date(s.attributes.start_datetime)
-    const time = startDT.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Copenhagen' })
-    return {
-      id: s.id,
-      date: s.attributes.start_date,
-      time,
-      class_type: s.attributes.class_type_display,
-      instructor: s.attributes.instructor_names?.[0] || '',
-      capacity: s.attributes.capacity,
-      participants: s.attributes.standard_reservation_user_count || 0,
-      location: s.attributes.location_display,
-    }
-  })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ sessions, total: sessions.length })
+  return NextResponse.json({ sessions: data, total: data.length })
 }
