@@ -1,25 +1,24 @@
 import { NextResponse } from 'next/server'
 
+const MT_HEADERS = {
+  'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`,
+  'Content-Type': 'application/json',
+}
+
 export async function GET() {
-  // Hent membership instances og se om der er Bruce-typer
+  // Søg efter Bruce integration service user
   const res = await fetch(
-    `https://nrthrnstrong.marianatek.com/api/membership_instances?per_page=10&purchase_location=48718`,
-    {
-      headers: {
-        'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`,
-        'Content-Type': 'application/json',
-      }
-    }
+    `https://nrthrnstrong.marianatek.com/api/users?search=bruce+integration`,
+    { headers: MT_HEADERS }
   )
   const data = await res.json()
   
-  // Find alle unikke membership navne
-  const names = [...new Set(data.data?.map((d: any) => d.attributes.membership_name))]
-  
-  // Hent også tags på en bruger for at se om Bruce er tagget
-  const userRes = await fetch(
-    `https://nrthrnstrong.marianatek.com/api/users?per_page=5&tag=bruce`,
-    {
-      headers: {
-        'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`,
-        'Content-Type': 'application/json',
+  return NextResponse.json({
+    count: data.meta?.pagination?.count,
+    users: data.data?.map((u: any) => ({
+      id: u.id,
+      name: u.attributes.full_name,
+      email: u.attributes.email,
+    }))
+  })
+}
