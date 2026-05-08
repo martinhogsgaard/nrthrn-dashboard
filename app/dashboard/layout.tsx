@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -18,19 +17,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
-const [checked, setChecked] = useState(false)
-
-useEffect(() => {
-  supabase.auth.getUser().then(({ data: { user } }) => {
-    if (!user) {
-      window.location.href = '/login'
-    } else {
-      setChecked(true)
-    }
-  })
-}, [])
-
-if (!checked) return null
 
   async function handleLogout() {
     await supabase.auth.signOut()
