@@ -30,6 +30,8 @@ export default function SetupPage() {
   const [locations, setLocations] = useState<Location[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
+  const [cacheSyncing, setCacheSyncing] = useState(false)
+const [cacheSyncResult, setCacheSyncResult] = useState<string | null>(null)
   const [syncResult, setSyncResult] = useState<string | null>(null)
   const [saving, setSaving] = useState<string | null>(null)
   const [memberSyncing, setMemberSyncing] = useState(false)
@@ -84,6 +86,16 @@ async function syncMembers() {
   setMemberSyncing(false)
   setMemberSyncProgress('')
   setMemberSyncResult(`✓ ${totalSynced} nye · ${totalSkipped} allerede kendte`)
+}async function syncCache() {
+  setCacheSyncing(true)
+  setCacheSyncResult(null)
+  const now = new Date()
+  const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+  const res = await fetch(`/api/sync-cache?start=${start}&end=${end}`)
+  const data = await res.json()
+  setCacheSyncing(false)
+  setCacheSyncResult(`✓ ${data.sessions} · ${data.memberships}`)
 }
   async function updateInstructor(id: string, updates: Partial<Instructor>) {
     setSaving(id)
@@ -155,7 +167,17 @@ async function syncMembers() {
           {memberSyncResult && <span style={{ fontSize: 11, color: '#2e8b6a', fontWeight: 500 }}>{memberSyncResult}</span>}
         </div>
       </div>
-      </Card>
+      <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #e4e0f0' }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1520', marginBottom: 4 }}>Opdater dashboard data</div>
+        <div style={{ fontSize: 12, color: '#8a85a0', marginBottom: 12 }}>Synkroniserer hold og abonnementer fra Mariana Tek. Kør dagligt for aktuelle tal.</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button onClick={syncCache} disabled={cacheSyncing}
+            style={{ background: cacheSyncing ? '#8b7bc5' : '#1a1228', border: 'none', color: '#fff', padding: '9px 24px', borderRadius: 24, cursor: cacheSyncing ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase' as const }}>
+            {cacheSyncing ? 'Opdaterer...' : '↻ Opdater data'}
+          </button>
+          {cacheSyncResult && <span style={{ fontSize: 11, color: '#2e8b6a', fontWeight: 500 }}>{cacheSyncResult}</span>}
+        </div>
+      </div></Card>
 
       <div style={{ marginTop: 24 }}>
         {/* Ikke tildelt */}
