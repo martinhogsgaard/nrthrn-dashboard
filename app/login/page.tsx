@@ -13,21 +13,23 @@ export default function LoginPage() {
   const supabase = createClient()
 
   async function handleLogin(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
+  e.preventDefault()
+  setLoading(true)
+  setError('')
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+  const res = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })
 
-    if (error) {
-      setError('Forkert email eller adgangskode')
-      setLoading(false)
-    } else {
-      // Vent på at session er sat i cookies
-await new Promise(resolve => setTimeout(resolve, 500))
-window.location.replace('/dashboard/overview')
-    }
+  if (!res.ok) {
+    setError('Forkert email eller adgangskode')
+    setLoading(false)
+  } else {
+    window.location.replace('/dashboard/overview')
   }
+}
 
   return (
     <div style={{
