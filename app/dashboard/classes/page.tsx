@@ -16,8 +16,8 @@ interface ClassSession {
 
 function getCurrentMonthRange() {
   const now = new Date()
-  const start = now.toISOString().split('T')[0]
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+  const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+  const end = now.toISOString().split('T')[0]
   return { start, end }
 }
 
