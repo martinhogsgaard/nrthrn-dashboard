@@ -25,9 +25,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div style={{ minHeight: '100vh', background: '#f8f7fc', fontFamily: 'Inter, sans-serif' }}>
 
-      {/* DEMO BANNER */}
-      <div style={{
-      </div>
 
       {/* TOPBAR */}
       <div style={{
