@@ -25,44 +25,31 @@ export async function GET(request: Request) {
   const today = now.toISOString().split('T')[0]
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
+  // Hent sessions
   const { data: allSessions } = await supabase
-    .from('sessions_cache')
-    .select('*')
+    .from('sessions_cache').select('*')
     .eq('location_id', location)
-    .gte('date', monthStart)
-    .lte('date', monthEnd)
+    .gte('date', monthStart).lte('date', monthEnd)
 
   const historicSessions = allSessions?.filter(s => s.date <= today) || []
   const futureSessions = allSessions?.filter(s => s.date > today) || []
 
+  // Hent instruktører
   const { data: instructors } = await supabase
-    .from('instructors')
-    .select('*, salary_rates(*)')
-    .eq('is_active', true)
+    .from('instructors').select('*, salary_rates(*)').eq('is_active', true)
 
   function calcTotalPayroll(sessions: any[]) {
     return (instructors || []).reduce((total, instructor) => {
       const activeRate = instructor.salary_rates
         ?.filter((r: any) => !r.valid_to)
         ?.sort((a: any, b: any) => new Date(b.valid_from).getTime() - new Date(a.valid_from).getTime())[0]
-        || {
-          rate_per_class: instructor.level === 'senior' ? 500 : 300,
-          bonus_threshold_1: 8, bonus_threshold_2: 12, bonus_threshold_3: 15,
-          bonus_tier_2: instructor.level === 'senior' ? 20 : 15,
-          bonus_tier_3: instructor.level === 'senior' ? 35 : 25,
-          bonus_tier_4: instructor.level === 'senior' ? 50 : 35,
-        }
+        || { rate_per_class: instructor.level === 'senior' ? 500 : 300, bonus_threshold_1: 8, bonus_threshold_2: 12, bonus_threshold_3: 15, bonus_tier_2: instructor.level === 'senior' ? 20 : 15, bonus_tier_3: instructor.level === 'senior' ? 35 : 25, bonus_tier_4: instructor.level === 'senior' ? 50 : 35 }
 
       const instrSessions = sessions.filter(s =>
-        s.instructor_profile_id === instructor.mariana_tek_profile_id ||
-        s.instructor_name === instructor.name
-      ).map(s => ({
-        participants: s.participants || 0,
-        participants_over_30: Math.round((s.participants || 0) * 0.5),
-        participants_under_30: Math.round((s.participants || 0) * 0.5),
-        date: s.date, class_name: s.class_type,
-      }))
+        s.instructor_profile_id === instructor.mariana_tek_profile_id || s.instructor_name === instructor.name
+      ).map(s => ({ participants: s.participants || 0, participants_over_30: Math.round((s.participants || 0) * 0.5), participants_under_30: Math.round((s.participants || 0) * 0.5), date: s.date, class_name: s.class_type }))
 
       if (instrSessions.length === 0) return total
       const result = calcPayroll(instrSessions, activeRate, instructor.employment_type === 'freelance')
@@ -73,22 +60,48 @@ export async function GET(request: Request) {
   const historicPayroll = calcTotalPayroll(historicSessions)
   const futurePayroll = calcTotalPayroll(futureSessions)
 
+  // Hent abonnementer
   const { data: memberships } = await supabase
-    .from('membership_cache')
-    .select('*')
-    .eq('purchase_location_id', location)
-    .eq('status', 'active')
+    .from('membership_cache').select('*')
+    .eq('purchase_location_id', location).eq('status', 'active')
     .gt('next_charge_date', new Date().toISOString())
 
   const totalMRR = memberships?.reduce((s, m) => s + (m.renewal_rate || MEMBERSHIP_PRICES[m.membership_name] || 0), 0) || 0
 
+  // Hent aldersfordeling
   const { data: members } = await supabase
-    .from('members').select('is_over_30').not('birth_date', 'is', null)
+    .from('members').select('is_over_30, joined_date').not('birth_date', 'is', null)
 
   const over30 = members?.filter(m => m.is_over_30 === true).length || 0
   const under30 = members?.filter(m => m.is_over_30 === false).length || 0
   const splitPct = (over30 + under30) > 0 ? Math.round(over30 / (over30 + under30) * 100) : 0
 
+  // Nye medlemmer denne måned
+  const { data: newMembersData } = await supabase
+    .from('members').select('id')
+    .gte('joined_date', monthStart).lte('joined_date', today)
+
+  // Inaktive — ikke booket de seneste 30 dage
+  const { data: recentBookings } = await supabase
+    .from('members').select('id')
+    .gte('updated_at', thirtyDaysAgo)
+
+  // Avg besøg pr. medlem — baseret på total deltagere / antal aktive medlemmer
+  const totalVisits = historicSessions.reduce((s, x) => s + (x.participants || 0), 0)
+  const avgVisits = (memberships?.length || 0) > 0
+    ? Math.round(totalVisits / (memberships?.length || 1) * 10) / 10
+    : 0
+
+  // MRR historik — kun nuværende måned har data, resten bygges op over tid
+  const mrrHistory = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
+    return {
+      month: d.toLocaleDateString('da-DK', { month: 'short' }),
+      mrr: i === 5 ? Math.round(totalMRR) : 0,
+    }
+  })
+
+  // Belægning historik
   const historicWithPart = historicSessions.filter(s => s.capacity > 0 && s.participants > 0)
   const historicAvgBelægning = historicWithPart.length > 0
     ? Math.round(historicWithPart.reduce((s, x) => s + (x.participants / x.capacity * 100), 0) / historicWithPart.length) : 0
@@ -108,9 +121,12 @@ export async function GET(request: Request) {
     period: { start: monthStart, today, end: monthEnd },
     mrr: totalMRR,
     members: memberships?.length || 0,
+    new_members: newMembersData?.length || 0,
+    avg_visits: avgVisits,
     split_pct: splitPct,
     over30_members: over30,
     under30_members: under30,
+    mrr_history: mrrHistory,
     historic: {
       sessions: historicSessions.length,
       participants: historicSessions.reduce((s, x) => s + (x.participants || 0), 0),
