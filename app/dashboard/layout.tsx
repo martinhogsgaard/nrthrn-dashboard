@@ -1,5 +1,6 @@
 'use client'
-
+import { useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -14,7 +15,13 @@ const NAV = [
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
+  const supabase = createClient()
+useEffect(() => {
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    if (!user) window.location.href = '/login'
+  })
+}, [])
+    const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
 
