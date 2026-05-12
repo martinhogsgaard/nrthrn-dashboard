@@ -6,16 +6,12 @@ export async function GET() {
   const key = process.env.ARKETA_API_KEY
   const partnerId = process.env.ARKETA_PARTNER_ID
 
-  const url = `${ARKETA_BASE}/${partnerId}/classes?startDate=2025-10-01&endDate=2025-10-03&limit=5`
-  
-  const res = await fetch(url, {
-    headers: { 'Authorization': `Bearer ${key}` }
-  })
+  // Hent reservations for første klasse
+  const res = await fetch(
+    `${ARKETA_BASE}/${partnerId}/classes/X6DVbaDpp1zlL0wlm00w/reservations?limit=5`,
+    { headers: { 'Authorization': `Bearer ${key}` } }
+  )
   const body = await res.json()
   
-  return NextResponse.json({ 
-    url,
-    status: res.status,
-    body
-  })
+  return NextResponse.json({ status: res.status, body })
 }
