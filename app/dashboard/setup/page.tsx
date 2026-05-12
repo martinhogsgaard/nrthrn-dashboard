@@ -118,6 +118,16 @@ async function syncMembers() {
   const data = await res.json()
   setCacheSyncing(false)
   setCacheSyncResult(`✓ ${data.sessions} · ${data.memberships}`)
+}async function saveSalaryDefaults() {
+  setSavingSettings(true)
+  await fetch('/api/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: 'salary_defaults', value: salaryDefaults })
+  })
+  setSavingSettings(false)
+  setSettingsSaved(true)
+  setTimeout(() => setSettingsSaved(false), 3000)
 }
   async function updateInstructor(id: string, updates: Partial<Instructor>) {
     setSaving(id)
