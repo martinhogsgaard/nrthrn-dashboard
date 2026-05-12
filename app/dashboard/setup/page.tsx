@@ -43,14 +43,9 @@ export default function SetupPage() {
   const [instructors, setInstructors] = useState<Instructor[]>([])
   const [locations, setLocations] = useState<Location[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<string | null>(null)
-  const [saving, setSaving] = useState<string | null>(null)
-  const [memberSyncing, setMemberSyncing] = useState(false)
-  const [memberSyncProgress, setMemberSyncProgress] = useState('')
-  const [memberSyncResult, setMemberSyncResult] = useState<string | null>(null)
-  const [cacheSyncing, setCacheSyncing] = useState(false)
-  const [cacheSyncResult, setCacheSyncResult] = useState<string | null>(null)
   const [salaryDefaults, setSalaryDefaults] = useState<SalaryDefaults>({
     junior_rate: 300, senior_rate: 500,
     bonus_threshold_1: 8, bonus_threshold_2: 12, bonus_threshold_3: 15,
@@ -73,9 +68,7 @@ export default function SetupPage() {
       fetch('/api/settings'),
     ])
     const [instrData, locData, settingsData] = await Promise.all([
-      instrRes.json(),
-      locRes.json(),
-      settingsRes.json(),
+      instrRes.json(), locRes.json(), settingsRes.json(),
     ])
     setInstructors(instrData)
     setLocations(locData)
@@ -83,48 +76,17 @@ export default function SetupPage() {
     setLoading(false)
   }
 
-  async function syncInstructors() {
+  async function syncAll() {
     setSyncing(true)
     setSyncResult(null)
-    const res = await fetch('/api/sync-instructors')
-    const data = await res.json()
-    setSyncing(false)
-    setSyncResult(`✓ ${data.synced} instruktører synkroniseret fra Mariana Tek`)
-    loadData()
-  }
-
-  async function syncMembers() {
-    setMemberSyncing(true)
-    setMemberSyncResult(null)
-    const start = (document.getElementById('sync-start') as HTMLInputElement).value
-    const end = (document.getElementById('sync-end') as HTMLInputElement).value
-    const res = await fetch(`/api/classes?start=${start}&end=${end}&location=48718`)
-    const data = await res.json()
-    const sessions = data.sessions || []
-    let totalSynced = 0
-    let totalSkipped = 0
-    for (let i = 0; i < sessions.length; i++) {
-      setMemberSyncProgress(`(${i + 1}/${sessions.length})`)
-      const syncRes = await fetch(`/api/sync-members?session_id=${sessions[i].id}`)
-      const syncData = await syncRes.json()
-      totalSynced += syncData.synced || 0
-      totalSkipped += syncData.skipped || 0
-    }
-    setMemberSyncing(false)
-    setMemberSyncProgress('')
-    setMemberSyncResult(`✓ ${totalSynced} nye · ${totalSkipped} allerede kendte`)
-  }
-
-  async function syncCache() {
-    setCacheSyncing(true)
-    setCacheSyncResult(null)
     const now = new Date()
     const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
     const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
     const res = await fetch(`/api/sync-cache?start=${start}&end=${end}`)
     const data = await res.json()
-    setCacheSyncing(false)
-    setCacheSyncResult(`✓ ${data.sessions} · ${data.memberships}`)
+    setSyncing(false)
+    setSyncResult(`✓ ${data.sessions} · ${data.memberships} · ${data.instructors} · ${data.birthdays}`)
+    loadData()
   }
 
   async function saveSalaryDefaults() {
@@ -189,48 +151,19 @@ export default function SetupPage() {
     <div>
       <SecLabel>Opsætning</SecLabel>
 
-      {/* Sync Card */}
+      {/* Én sync knap */}
       <Card>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1520', marginBottom: 4 }}>Synkroniser instruktører fra Mariana Tek</div>
-            <div style={{ fontSize: 12, color: '#8a85a0' }}>Henter alle instruktørprofiler og tilføjer nye. Eksisterende data bevares.</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1520', marginBottom: 4 }}>Opdater hele dashboardet</div>
+            <div style={{ fontSize: 12, color: '#8a85a0' }}>Henter hold, abonnementer, instruktører og fødselsdatoer fra Mariana Tek. Kører automatisk hver morgen kl. 06:00.</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {syncResult && <span style={{ fontSize: 11, color: '#2e8b6a', fontWeight: 500 }}>{syncResult}</span>}
-            <button onClick={syncInstructors} disabled={syncing}
-              style={{ background: syncing ? '#8b7bc5' : '#6b5ca5', border: 'none', color: '#fff', padding: '9px 24px', borderRadius: 24, cursor: syncing ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase' as const }}>
-              {syncing ? 'Synkroniserer...' : '↻ Synkroniser nu'}
+            <button onClick={syncAll} disabled={syncing}
+              style={{ background: syncing ? '#8b7bc5' : '#1a1228', border: 'none', color: '#fff', padding: '9px 24px', borderRadius: 24, cursor: syncing ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase' as const }}>
+              {syncing ? 'Opdaterer...' : '↻ Opdater data'}
             </button>
-          </div>
-        </div>
-
-        <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #e4e0f0' }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1520', marginBottom: 4 }}>Synkroniser fødselsdatoer fra bookinger</div>
-          <div style={{ fontSize: 12, color: '#8a85a0', marginBottom: 12 }}>Henter fødselsdato for alle deltagere i den valgte periode.</div>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-            <input type="date" id="sync-start" defaultValue="2026-05-01"
-              style={{ padding: '6px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 12, fontFamily: 'Inter, sans-serif' }} />
-            <span style={{ color: '#8a85a0' }}>→</span>
-            <input type="date" id="sync-end" defaultValue="2026-05-31"
-              style={{ padding: '6px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 12, fontFamily: 'Inter, sans-serif' }} />
-            <button onClick={syncMembers} disabled={memberSyncing}
-              style={{ background: memberSyncing ? '#8b7bc5' : '#2e8b6a', border: 'none', color: '#fff', padding: '9px 24px', borderRadius: 24, cursor: memberSyncing ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase' as const }}>
-              {memberSyncing ? `Synkroniserer... ${memberSyncProgress}` : '↻ Sync fødselsdatoer'}
-            </button>
-            {memberSyncResult && <span style={{ fontSize: 11, color: '#2e8b6a', fontWeight: 500 }}>{memberSyncResult}</span>}
-          </div>
-        </div>
-
-        <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #e4e0f0' }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1520', marginBottom: 4 }}>Opdater dashboard data</div>
-          <div style={{ fontSize: 12, color: '#8a85a0', marginBottom: 12 }}>Synkroniserer hold og abonnementer fra Mariana Tek.</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={syncCache} disabled={cacheSyncing}
-              style={{ background: cacheSyncing ? '#8b7bc5' : '#1a1228', border: 'none', color: '#fff', padding: '9px 24px', borderRadius: 24, cursor: cacheSyncing ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase' as const }}>
-              {cacheSyncing ? 'Opdaterer...' : '↻ Opdater data'}
-            </button>
-            {cacheSyncResult && <span style={{ fontSize: 11, color: '#2e8b6a', fontWeight: 500 }}>{cacheSyncResult}</span>}
           </div>
         </div>
       </Card>
@@ -373,7 +306,6 @@ function InstructorCard({ instructor: i, locations, saving, onUpdate, onEditSala
   onEditSalary: () => void
 }) {
   const hasOverride = i.salary_rates && i.salary_rates.length > 0
-
   return (
     <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, opacity: i.is_active ? 1 : 0.5 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -383,8 +315,6 @@ function InstructorCard({ instructor: i, locations, saving, onUpdate, onEditSala
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1520' }}>{i.name}</div>
           {i.email && <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 2 }}>{i.email}</div>}
-          {i.birth_date && <div style={{ fontSize: 11, color: '#2e8b6a', marginTop: 1 }}>🎂 {i.birth_date}</div>}
-          {!i.birth_date && <div style={{ fontSize: 11, color: '#c0392b', marginTop: 1 }}>Ingen fødselsdato</div>}
           <div style={{ display: 'flex', gap: 5, marginTop: 4 }}>
             <Badge type={i.level}>{i.level === 'junior' ? 'Junior' : 'Senior'}</Badge>
             <Badge type={i.employment_type}>{i.employment_type === 'employed' ? 'Timeansat' : 'Selvstændig'}</Badge>
