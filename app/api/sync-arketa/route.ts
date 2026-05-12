@@ -37,12 +37,11 @@ export async function GET(request: Request) {
 
   // Sync sessions
   if (type === 'all' || type === 'sessions') {
+    const start = searchParams.get('start') || '2025-10-01'
+    const end = searchParams.get('end') || '2025-10-31'
     const sessions = await fetchAllPages(
-      const start = searchParams.get('start') || '2025-10-01'
-const end = searchParams.get('end') || '2025-10-31'
-const sessions = await fetchAllPages(
-  `/classes?startDate=${start}&endDate=${end}`
-)
+      `/classes?startDate=${start}&endDate=${end}`
+    )
 
     const toUpsert = sessions.map((s: any) => ({
       id: s.id,
