@@ -25,6 +25,20 @@ interface Instructor {
   salary_rates?: any[]
 }
 
+interface SalaryDefaults {
+  junior_rate: number
+  senior_rate: number
+  bonus_threshold_1: number
+  bonus_threshold_2: number
+  bonus_threshold_3: number
+  junior_bonus_tier_2: number
+  junior_bonus_tier_3: number
+  junior_bonus_tier_4: number
+  senior_bonus_tier_2: number
+  senior_bonus_tier_3: number
+  senior_bonus_tier_4: number
+}
+
 export default function SetupPage() {
   const [instructors, setInstructors] = useState<Instructor[]>([])
   const [locations, setLocations] = useState<Location[]>([])
@@ -34,6 +48,14 @@ export default function SetupPage() {
 const [cacheSyncResult, setCacheSyncResult] = useState<string | null>(null)
   const [syncResult, setSyncResult] = useState<string | null>(null)
   const [saving, setSaving] = useState<string | null>(null)
+  const [salaryDefaults, setSalaryDefaults] = useState<SalaryDefaults>({
+  junior_rate: 300, senior_rate: 500,
+  bonus_threshold_1: 8, bonus_threshold_2: 12, bonus_threshold_3: 15,
+  junior_bonus_tier_2: 15, junior_bonus_tier_3: 25, junior_bonus_tier_4: 35,
+  senior_bonus_tier_2: 20, senior_bonus_tier_3: 35, senior_bonus_tier_4: 50,
+})
+const [savingSettings, setSavingSettings] = useState(false)
+const [settingsSaved, setSettingsSaved] = useState(false)
   const [memberSyncing, setMemberSyncing] = useState(false)
 const [memberSyncProgress, setMemberSyncProgress] = useState('')
 const [memberSyncResult, setMemberSyncResult] = useState<string | null>(null)
@@ -178,6 +200,102 @@ async function syncMembers() {
           {cacheSyncResult && <span style={{ fontSize: 11, color: '#2e8b6a', fontWeight: 500 }}>{cacheSyncResult}</span>}
         </div>
       </div></Card>
+      {/* Globale lønsatser */}
+<div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24, marginBottom: 24 }}>
+  <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1520', marginBottom: 4 }}>Globale lønsatser</div>
+  <div style={{ fontSize: 12, color: '#8a85a0', marginBottom: 20 }}>Standard satser for alle instruktører. Kan overrides pr. instruktør.</div>
+  
+  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+    {/* Junior */}
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#6b5ca5', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Junior</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <label style={{ fontSize: 12, color: '#4a4560' }}>
+          Timepris pr. hold (kr.)
+          <input type="number" value={salaryDefaults.junior_rate}
+            onChange={e => setSalaryDefaults(p => ({ ...p, junior_rate: Number(e.target.value) }))}
+            style={{ display: 'block', width: '100%', padding: '6px 10px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }} />
+        </label>
+        <label style={{ fontSize: 12, color: '#4a4560' }}>
+          Bonus trin 2 (9-12 del.) kr./del.
+          <input type="number" value={salaryDefaults.junior_bonus_tier_2}
+            onChange={e => setSalaryDefaults(p => ({ ...p, junior_bonus_tier_2: Number(e.target.value) }))}
+            style={{ display: 'block', width: '100%', padding: '6px 10px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }} />
+        </label>
+        <label style={{ fontSize: 12, color: '#4a4560' }}>
+          Bonus trin 3 (13-15 del.) kr./del.
+          <input type="number" value={salaryDefaults.junior_bonus_tier_3}
+            onChange={e => setSalaryDefaults(p => ({ ...p, junior_bonus_tier_3: Number(e.target.value) }))}
+            style={{ display: 'block', width: '100%', padding: '6px 10px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }} />
+        </label>
+        <label style={{ fontSize: 12, color: '#4a4560' }}>
+          Bonus trin 4 (16+ del.) kr./del.
+          <input type="number" value={salaryDefaults.junior_bonus_tier_4}
+            onChange={e => setSalaryDefaults(p => ({ ...p, junior_bonus_tier_4: Number(e.target.value) }))}
+            style={{ display: 'block', width: '100%', padding: '6px 10px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }} />
+        </label>
+      </div>
+    </div>
+
+    {/* Senior */}
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#2e8b6a', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Senior</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <label style={{ fontSize: 12, color: '#4a4560' }}>
+          Timepris pr. hold (kr.)
+          <input type="number" value={salaryDefaults.senior_rate}
+            onChange={e => setSalaryDefaults(p => ({ ...p, senior_rate: Number(e.target.value) }))}
+            style={{ display: 'block', width: '100%', padding: '6px 10px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }} />
+        </label>
+        <label style={{ fontSize: 12, color: '#4a4560' }}>
+          Bonus trin 2 (9-12 del.) kr./del.
+          <input type="number" value={salaryDefaults.senior_bonus_tier_2}
+            onChange={e => setSalaryDefaults(p => ({ ...p, senior_bonus_tier_2: Number(e.target.value) }))}
+            style={{ display: 'block', width: '100%', padding: '6px 10px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }} />
+        </label>
+        <label style={{ fontSize: 12, color: '#4a4560' }}>
+          Bonus trin 3 (13-15 del.) kr./del.
+          <input type="number" value={salaryDefaults.senior_bonus_tier_3}
+            onChange={e => setSalaryDefaults(p => ({ ...p, senior_bonus_tier_3: Number(e.target.value) }))}
+            style={{ display: 'block', width: '100%', padding: '6px 10px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }} />
+        </label>
+        <label style={{ fontSize: 12, color: '#4a4560' }}>
+          Bonus trin 4 (16+ del.) kr./del.
+          <input type="number" value={salaryDefaults.senior_bonus_tier_4}
+            onChange={e => setSalaryDefaults(p => ({ ...p, senior_bonus_tier_4: Number(e.target.value) }))}
+            style={{ display: 'block', width: '100%', padding: '6px 10px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }} />
+        </label>
+      </div>
+    </div>
+  </div>
+
+  {/* Bonustærskler */}
+  <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #e4e0f0' }}>
+    <div style={{ fontSize: 11, fontWeight: 700, color: '#8a85a0', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Bonustærskler (deltagere)</div>
+    <div style={{ display: 'flex', gap: 16 }}>
+      {[
+        { label: 'Trin 1 → 2', key: 'bonus_threshold_1' },
+        { label: 'Trin 2 → 3', key: 'bonus_threshold_2' },
+        { label: 'Trin 3 → 4', key: 'bonus_threshold_3' },
+      ].map(t => (
+        <label key={t.key} style={{ fontSize: 12, color: '#4a4560', flex: 1 }}>
+          {t.label}
+          <input type="number" value={salaryDefaults[t.key as keyof SalaryDefaults]}
+            onChange={e => setSalaryDefaults(p => ({ ...p, [t.key]: Number(e.target.value) }))}
+            style={{ display: 'block', width: '100%', padding: '6px 10px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }} />
+        </label>
+      ))}
+    </div>
+  </div>
+
+  <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
+    <button onClick={saveSalaryDefaults} disabled={savingSettings}
+      style={{ background: savingSettings ? '#8b7bc5' : '#6b5ca5', border: 'none', color: '#fff', padding: '9px 24px', borderRadius: 24, cursor: savingSettings ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase' as const }}>
+      {savingSettings ? 'Gemmer...' : 'Gem lønsatser'}
+    </button>
+    {settingsSaved && <span style={{ fontSize: 11, color: '#2e8b6a', fontWeight: 500 }}>✓ Gemt</span>}
+  </div>
+</div>
 
       <div style={{ marginTop: 24 }}>
         {/* Ikke tildelt */}
