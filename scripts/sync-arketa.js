@@ -6,14 +6,13 @@ const BASE = 'https://us-central1-sutra-prod.cloudfunctions.net/partnerApi/v0/' 
 const AUTH = { 'Authorization': 'Bearer ' + process.env.ARKETA_API_KEY }
 
 async function fetchAll(path) {
-  let items = [], cursor = '', page = 1, lastId = ''
+  let items = [], cursor = null, page = 1
   while (true) {
-    const url = BASE + path + (path.includes('?') ? '&' : '?') + 'limit=100' + (cursor ? '&startAfter=' + cursor : '')
+    const sep = path.includes('?') ? '&' : '?'
+    const url = BASE + path + sep + 'limit=100' + (cursor ? '&start_after=' + cursor : '')
     const data = await fetch(url, { headers: AUTH }).then(r => r.json())
     if (!data.items || data.items.length === 0) break
-    const newItems = cursor ? data.items.filter(i => i.id !== lastId) : data.items
-    items = [...items, ...newItems]
-    lastId = data.items[data.items.length - 1].id
+    items = [...items, ...data.items]
     process.stdout.write('\r  Side ' + page + ' - ' + items.length + ' hentet...')
     if (!data.pagination || !data.pagination.hasMore) break
     cursor = data.pagination.nextStartAfterId
@@ -41,7 +40,6 @@ async function main() {
     gender: c.gender, removed: c.removed || false, created_at: c.created_at,
   })))
   console.log('Klienter gemt!')
-
   console.log('Henter koeb...')
   const purchases = await fetchAll('/purchases')
   console.log('Koeb: ' + purchases.length)

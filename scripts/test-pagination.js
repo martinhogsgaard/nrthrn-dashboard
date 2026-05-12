@@ -3,18 +3,21 @@ const BASE = 'https://us-central1-sutra-prod.cloudfunctions.net/partnerApi/v0/' 
 const AUTH = { 'Authorization': 'Bearer ' + process.env.ARKETA_API_KEY }
 
 async function test() {
-  const url = BASE + '/clients?limit=3'
-  const data = await fetch(url, { headers: AUTH }).then(r => r.json())
-  console.log('Items:', data.items.length)
-  console.log('Raw cursor:', data.pagination.nextStartAfterId)
-  console.log('Decoded:', decodeURIComponent(data.pagination.nextStartAfterId))
+  // Side 1
+  const d1 = await fetch(BASE + '/clients?limit=5', { headers: AUTH }).then(r => r.json())
+  console.log('Side 1 IDs:', d1.items.map(i => i.id.slice(0,8)))
+  console.log('Cursor:', d1.pagination.nextStartAfterId.slice(0,50))
   
-  // Prøv næste side med raw cursor
-  const url2 = BASE + '/clients?limit=3&startAfter=' + data.pagination.nextStartAfterId
-  const data2 = await fetch(url2, { headers: AUTH }).then(r => r.json())
-  console.log('\nSide 2 items:', data2.items && data2.items.length)
-  console.log('Side 2 first ID:', data2.items && data2.items[0] && data2.items[0].id)
-  console.log('Side 1 last ID:', data.items[data.items.length-1].id)
-  console.log('Samme?', data2.items && data2.items[0] && data2.items[0].id === data.items[0].id)
+  // Side 2 med cursor
+  const d2 = await fetch(BASE + '/clients?limit=5&startAfter=' + d1.pagination.nextStartAfterId, { headers: AUTH }).then(r => r.json())
+  console.log('Side 2 IDs:', d2.items.map(i => i.id.slice(0,8)))
+  
+  // Side 3 med cursor fra side 2
+  const d3 = await fetch(BASE + '/clients?limit=5&startAfter=' + d2.pagination.nextStartAfterId, { headers: AUTH }).then(r => r.json())
+  console.log('Side 3 IDs:', d3.items.map(i => i.id.slice(0,8)))
+  
+  console.log('Side 1 last == Side 2 first?', d1.items[4].id === d2.items[0].id)
+  console.log('Side 2 last == Side 3 first?', d2.items[4].id === d3.items[0].id)
+  console.log('Alle unikke?', new Set([...d1.items, ...d2.items, ...d3.items].map(i => i.id)).size === 15)
 }
 test().catch(console.error)
