@@ -1,15 +1,23 @@
 import { NextResponse } from 'next/server'
 
+const ARKETA_HEADERS = {
+  'Authorization': `Bearer ${process.env.ARKETA_API_KEY}`,
+  'Content-Type': 'application/json',
+  'x-api-key': process.env.ARKETA_API_KEY || '',
+}
+
 export async function GET() {
-  const res = await fetch(
-    'https://us-central1-sutra-prod.cloudfunctions.net/external/nordic-strong',
-    {
-      headers: {
-        'Authorization': `Bearer ${process.env.ARKETA_API_KEY}`,
-        'Content-Type': 'application/json',
-      }
-    }
-  )
-  const text = await res.text()
-  return NextResponse.json({ status: res.status, body: text.slice(0, 2000) })
+  const endpoints = [
+    'https://us-central1-sutra-prod.cloudfunctions.net/external/nordic-strong/classes',
+    'https://us-central1-sutra-prod.cloudfunctions.net/external/nordic-strong/sessions',
+    'https://us-central1-sutra-prod.cloudfunctions.net/external/nordic-strong/bookings',
+  ]
+
+  const results: any = {}
+  for (const url of endpoints) {
+    const res = await fetch(url, { headers: ARKETA_HEADERS })
+    results[url.split('/').pop() || ''] = res.status
+  }
+
+  return NextResponse.json(results)
 }
