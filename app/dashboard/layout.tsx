@@ -87,7 +87,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     background: '#fff', borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,.15)',
                     border: '1px solid #e4e0f0', minWidth: 160, zIndex: 200, overflow: 'hidden',
                   }}>
-                    {n.children.map(c => (
+                    {n.children!.map(c => (
                       <button key={c.href} onClick={() => { router.push(c.href); setOpenDropdown(null) }}
                         style={{
                           display: 'block', width: '100%', padding: '10px 16px', fontSize: 12,
