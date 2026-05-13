@@ -115,7 +115,7 @@ export async function GET(request: Request) {
     .sort((a, b) => b.participants - a.participants).slice(0, 3)
 
   const lowBelægning = [...historicSessions]
-    .filter(s => s.capacity > 0 && s.participants > 0 && s.participants / s.capacity < 0.4)
+  .filter(s => s.capacity > 0 && s.capacity < 50 && s.participants > 0 && s.participants / s.capacity < 0.4)
     .sort((a, b) => (a.participants / a.capacity) - (b.participants / b.capacity)).slice(0, 3)
 
   return NextResponse.json({
