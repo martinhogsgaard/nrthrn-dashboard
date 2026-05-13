@@ -178,14 +178,15 @@ export default function BrucePage() {
               </thead>
               <tbody>
                 {data.sessions.map((s, i) => {
-                  const pct = s.total_participants > 0 ? Math.round(s.bruce_spots / s.total_participants * 100) : 100
+                  const realTotal = s.total_participants + s.bruce_spots
+const pct = realTotal > 0 ? Math.round(s.bruce_spots / realTotal * 100) : 0
                   return (
                     <tr key={i} style={{ borderBottom: '1px solid #f0eef8' }}>
                       <td style={{ padding: '8px 12px', color: '#8a85a0' }}>{s.date}</td>
                       <td style={{ padding: '8px 12px', fontWeight: 500 }}>{s.class_type}</td>
                       <td style={{ padding: '8px 12px', color: '#4a4560' }}>{s.instructor_name || '—'}</td>
                       <td style={{ padding: '8px 12px', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 18, fontWeight: 700, color: '#1a1228' }}>{s.bruce_spots}</td>
-                      <td style={{ padding: '8px 12px', color: '#8a85a0' }}>{s.total_participants}</td>
+                      <td style={{ padding: '8px 12px', color: '#8a85a0' }}>{s.total_participants + s.bruce_spots}</td>
                       <td style={{ padding: '8px 12px' }}>
                         <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, fontWeight: 600, background: pct > 50 ? '#f2f0f9' : '#f8f7fc', color: pct > 50 ? '#6b5ca5' : '#8a85a0' }}>{pct}%</span>
                       </td>
