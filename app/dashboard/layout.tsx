@@ -82,8 +82,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   {n.label} ▾
                 </button>
                 {openDropdown === n.label && (
-                  <div style={{
-                    position: 'absolute', top: '100%', left: 0, marginTop: 4,
+                    <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 0,
                     background: '#fff', borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,.15)',
                     border: '1px solid #e4e0f0', minWidth: 160, zIndex: 200, overflow: 'hidden',
                   }}>
