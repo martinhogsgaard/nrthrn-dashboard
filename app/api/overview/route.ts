@@ -61,7 +61,13 @@ export async function GET(request: Request) {
   const futurePayroll = calcTotalPayroll(futureSessions)
 
   // Hent abonnementer
-const totalMRR = memberships?.reduce((s, m) => s + (m.renewal_rate || 0), 0) || 0
+// Hent abonnementer
+  const { data: memberships } = await supabase
+    .from('membership_cache').select('*')
+    .eq('purchase_location_id', location).eq('status', 'active')
+    .gt('next_charge_date', new Date().toISOString())
+
+  const totalMRR = memberships?.reduce((s, m) => s + (m.renewal_rate || 0), 0) || 0
 
   // Hent aldersfordeling
   const { data: members } = await supabase
