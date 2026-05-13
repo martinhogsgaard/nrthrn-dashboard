@@ -106,10 +106,9 @@ export async function GET(request: Request) {
         )
       )
       bruceSpotsBySession[session.id] = reservations.filter(r => {
-        if (!r?.data) return false
-        return (r.data.relationships?.tags?.data || []).length === 0 &&
-               (r.data.relationships?.credit_transactions?.data || []).length === 0
-      }).length
+  if (!r?.data) return false
+  return r.data.relationships?.broker?.data?.id === '53027'
+}).length
     }
 
     const sessionsToUpsert = allSessions.map((s: any) => {
@@ -196,7 +195,7 @@ export async function GET(request: Request) {
     let synced = 0
     for (const resId of reservationIds) {
       try {
-        const resRes = await fetch(`https://nrthrnstrong.marianatek.com/api/reservations/${resId}`, { headers: MT_HEADERS })
+        fetch(`https://nrthrnstrong.marianatek.com/api/reservations/${id}`, { headers: MT_HEADERS })
         const resData = await resRes.json()
         const userId = resData.data?.relationships?.user?.data?.id
         if (!userId) continue
