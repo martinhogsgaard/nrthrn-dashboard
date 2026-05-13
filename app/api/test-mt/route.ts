@@ -6,14 +6,13 @@ const MT_HEADERS = {
 }
 
 export async function GET() {
-  const now = new Date()
-  const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+  const today = new Date().toISOString().split('T')[0]
   
   let all: any[] = []
   let page = 1
-  while (page <= 6) {
+  while (page <= 5) {
     const res = await fetch(
-      `https://nrthrnstrong.marianatek.com/api/orders?min_datetime=${start}&per_page=100&page=${page}`,
+      `https://nrthrnstrong.marianatek.com/api/orders?min_datetime=${today}&per_page=100&page=${page}`,
       { headers: MT_HEADERS }
     )
     const data = await res.json()
@@ -23,25 +22,15 @@ export async function GET() {
     page++
   }
 
-  // Filtrer kun København og completed
-  const cph = all.filter(o => 
-    o.attributes.location === 'Copenhagen' && 
-    o.attributes.status === 'Completed' &&
-    o.attributes.total > 0
-  )
-
-  // Gruppér på summary
-  const grouped = cph.reduce((acc: any, o: any) => {
-    const name = o.attributes.summary?.[0] || 'Ukendt'
-    if (!acc[name]) acc[name] = { count: 0, total: 0 }
-    acc[name].count++
-    acc[name].total += o.attributes.total
+  const cph = all.filter(o => o.attributes.location === 'Copenhagen' && o.attributes.status === 'Completed')
+  const total = cph.reduce((s, o) => s + o.attributes.total, 0)
+  
+  const byType = cph.reduce((acc: any, o: any) => {
+    const summary = o.attributes.summary?.[0] || 'Ukendt'
+    if (!acc[summary]) acc[summary] = 0
+    acc[summary] += o.attributes.total
     return acc
   }, {})
 
-  return NextResponse.json({ 
-    total_orders: cph.length,
-    total_revenue: cph.reduce((s, o) => s + o.attributes.total, 0),
-    grouped
-  })
+  return NextResponse.json({ total, orders: cph.length, by_product: byType })
 }
