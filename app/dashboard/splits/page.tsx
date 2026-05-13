@@ -3,7 +3,14 @@
 import { useEffect, useState } from 'react'
 import { SecLabel, formatDKK } from '@/components/ui'
 
-interface SessionDetail {
+interface OrderItem {
+  name: string
+  count: number
+  total: number
+  age_group: string
+}
+
+interface FreelancerSession {
   date: string
   class_name: string
   participants: number
@@ -20,7 +27,7 @@ interface SessionDetail {
 
 interface FreelancerData {
   instructor: { id: string, name: string, initials: string, email: string | null, level: string }
-  sessions: SessionDetail[]
+  sessions: FreelancerSession[]
   totals: {
     sessions: number, participants: number, over30: number, under30: number,
     base_total: number, bonus_total: number, amount_excl_vat: number,
@@ -32,7 +39,9 @@ interface SplitsData {
   period: { start: string, end: string }
   split_pct: { over30: number, under30: number }
   mrr: { total: number, over30: number, under30: number, vat: number }
-  sessions: { total: number, participants: number, over30: number, under30: number }
+  orders: { total: number, over30: number, under30: number, vat: number, breakdown: OrderItem[] }
+  total_revenue: { total: number, over30: number, under30: number, vat: number }
+  sessions: { total: number, participants: number }
   freelancers: FreelancerData[]
 }
 
@@ -62,24 +71,6 @@ export default function SplitsPage() {
     setLoading(false)
   }
 
-  async function sendPayslip(freelancer: FreelancerData) {
-    if (!freelancer.instructor.email) {
-      alert('Ingen email registreret for denne instruktør')
-      return
-    }
-    setSending(true)
-    // Byg email indhold
-    const subject = `Lønkladde ${period.start} – ${period.end}`
-    const body = buildEmailBody(freelancer)
-    
-    // Åbn mail-klient
-    const mailto = `mailto:${freelancer.instructor.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-    window.open(mailto)
-    setSending(false)
-    setSent(true)
-    setTimeout(() => setSent(false), 3000)
-  }
-
   function buildEmailBody(f: FreelancerData): string {
     const lines = [
       `Hej ${f.instructor.name.split(' ')[0]},`,
@@ -89,8 +80,8 @@ export default function SplitsPage() {
       `OVERSIGT`,
       `Antal hold: ${f.totals.sessions}`,
       `Antal deltagere: ${f.totals.participants}`,
-      `  - Over 30: ${f.totals.over30} (${data?.split_pct.over30}%)`,
-      `  - Under 30: ${f.totals.under30} (${data?.split_pct.under30}%)`,
+      `  - Over 30 (${data?.split_pct.over30}%): ${f.totals.over30}`,
+      `  - Under 30 (${data?.split_pct.under30}%): ${f.totals.under30}`,
       ``,
       `BEREGNING`,
       `Timepris i alt: ${f.totals.base_total} kr.`,
@@ -115,6 +106,16 @@ export default function SplitsPage() {
     return lines.join('\n')
   }
 
+  async function sendPayslip(freelancer: FreelancerData) {
+    if (!freelancer.instructor.email) { alert('Ingen email registreret'); return }
+    setSending(true)
+    const mailto = `mailto:${freelancer.instructor.email}?subject=${encodeURIComponent(`Lønkladde ${period.start} – ${period.end}`)}&body=${encodeURIComponent(buildEmailBody(freelancer))}`
+    window.open(mailto)
+    setSending(false)
+    setSent(true)
+    setTimeout(() => setSent(false), 3000)
+  }
+
   if (loading || !data) return <div style={{ padding: 40, color: '#8a85a0', textAlign: 'center' }}>Beregner split-moms...</div>
 
   if (selected) {
@@ -122,9 +123,7 @@ export default function SplitsPage() {
       <div>
         <div style={{ background: 'linear-gradient(90deg,#5a4898,#1a1228 60%,#5a4898)', borderRadius: 10, padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 46, height: 46, borderRadius: '50%', background: 'rgba(255,255,255,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: '#fff' }}>
-              {selected.instructor.initials}
-            </div>
+            <div style={{ width: 46, height: 46, borderRadius: '50%', background: 'rgba(255,255,255,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: '#fff' }}>{selected.instructor.initials}</div>
             <div>
               <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 24, fontWeight: 700, color: '#fff' }}>{selected.instructor.name}</div>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,.7)', marginTop: 2 }}>Lønkladde {period.start} → {period.end}</div>
@@ -133,7 +132,7 @@ export default function SplitsPage() {
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={() => sendPayslip(selected)} disabled={sending}
               style={{ background: '#2e8b6a', border: 'none', color: '#fff', padding: '8px 20px', borderRadius: 24, cursor: 'pointer', fontSize: 11, fontFamily: 'Inter, sans-serif', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase' }}>
-              {sent ? '✓ Sendt' : sending ? 'Sender...' : '✉ Send til instruktør'}
+              {sent ? '✓ Åbnet' : '✉ Send til instruktør'}
             </button>
             <button onClick={() => setSelected(null)}
               style={{ background: 'rgba(255,255,255,.15)', border: '1px solid rgba(255,255,255,.3)', color: '#fff', padding: '8px 18px', borderRadius: 24, cursor: 'pointer', fontSize: 11, fontFamily: 'Inter, sans-serif' }}>
@@ -142,7 +141,6 @@ export default function SplitsPage() {
           </div>
         </div>
 
-        {/* Totaler */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
           {[
             { label: 'Faktura total', val: formatDKK(selected.totals.invoice_total), color: '#6b5ca5' },
@@ -157,7 +155,6 @@ export default function SplitsPage() {
           ))}
         </div>
 
-        {/* Sessions tabel */}
         <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, overflow: 'hidden', marginBottom: 20 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
@@ -199,21 +196,20 @@ export default function SplitsPage() {
           </table>
         </div>
 
-        {/* Faktura opsummering */}
         <div style={{ background: '#f2f0f9', border: '1px solid #d0c8e8', borderRadius: 10, padding: 24 }}>
           <div style={{ fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700, marginBottom: 16 }}>Faktura opsummering</div>
           {[
-            { label: `Over 30 (${data.split_pct.over30}%) — momspligtig`, val: formatDKK(selected.totals.over30_amount), sub: true },
-            { label: '+ Moms 25%', val: formatDKK(selected.totals.vat_amount), color: '#9a6200' },
-            { label: `Under 30 (${data.split_pct.under30}%) — momsfri`, val: formatDKK(selected.totals.under30_amount), sub: true },
+            { label: `Over 30 (${data.split_pct.over30}%) — momspligtig`, val: formatDKK(selected.totals.over30_amount) },
+            { label: '+ Moms 25%', val: formatDKK(selected.totals.vat_amount), color: '#9a6200', indent: true },
+            { label: `Under 30 (${data.split_pct.under30}%) — momsfri`, val: formatDKK(selected.totals.under30_amount) },
           ].map((r, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #d0c8e8' }}>
-              <span style={{ fontSize: 12, color: r.sub ? '#4a4560' : '#8a85a0', paddingLeft: r.sub ? 0 : 16 }}>{r.label}</span>
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #d0c8e8', paddingLeft: r.indent ? 16 : 0 }}>
+              <span style={{ fontSize: 12, color: '#4a4560' }}>{r.label}</span>
               <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 18, fontWeight: 700, color: r.color || '#1a1520' }}>{r.val}</span>
             </div>
           ))}
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 0 0' }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#1a1520' }}>Faktura total inkl. moms</span>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>Faktura total inkl. moms</span>
             <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 32, fontWeight: 700, color: '#6b5ca5' }}>{formatDKK(selected.totals.invoice_total)}</span>
           </div>
         </div>
@@ -225,7 +221,6 @@ export default function SplitsPage() {
     <div>
       <SecLabel>Split-moms — København</SecLabel>
 
-      {/* Periode */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 24, alignItems: 'center' }}>
         <div style={{ fontSize: 11, color: '#8a85a0', fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase' }}>Periode:</div>
         <input type="date" value={period.start} onChange={e => setPeriod(p => ({ ...p, start: e.target.value }))}
@@ -235,10 +230,30 @@ export default function SplitsPage() {
           style={{ padding: '6px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 12, fontFamily: 'Inter, sans-serif', color: '#1a1520' }} />
       </div>
 
-      {/* Moms oversigt */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 16, marginBottom: 24 }}>
+      {/* Samlet moms oversigt */}
+      <div style={{ background: '#f2f0f9', border: '2px solid #6b5ca5', borderRadius: 10, padding: 24, marginBottom: 20 }}>
+        <div style={{ fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700, marginBottom: 16 }}>Samlet moms at afregne denne periode</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 20 }}>
+          {[
+            { label: 'Total omsætning', val: formatDKK(data.total_revenue.total), sub: `MRR + nye køb` },
+            { label: 'Momspligtig (over 30)', val: formatDKK(data.total_revenue.over30), sub: `${data.split_pct.over30}% af omsætning`, color: '#6b5ca5' },
+            { label: 'Moms at afregne (25%)', val: formatDKK(data.total_revenue.vat), sub: `Skal angives til SKAT`, color: '#9a6200' },
+          ].map((k, i) => (
+            <div key={i} style={{ background: '#fff', borderRadius: 8, padding: '16px' }}>
+              <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 8 }}>{k.label}</div>
+              <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 28, fontWeight: 700, color: k.color || '#1a1520', lineHeight: 1 }}>{k.val}</div>
+              <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 6 }}>{k.sub}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* MRR og Nye køb side om side */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+
+        {/* MRR */}
         <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
-          <div style={{ fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 16 }}>MRR — momsfordeling</div>
+          <div style={{ fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 16 }}>MRR — løbende abonnementer</div>
           {[
             { label: `Over 30 (${data.split_pct.over30}%)`, val: formatDKK(data.mrr.over30), color: '#6b5ca5' },
             { label: '+ Moms 25%', val: formatDKK(data.mrr.vat), color: '#9a6200', indent: true },
@@ -246,31 +261,36 @@ export default function SplitsPage() {
           ].map((r, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f0eef8', paddingLeft: r.indent ? 16 : 0 }}>
               <span style={{ fontSize: 12, color: '#4a4560' }}>{r.label}</span>
-              <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 20, fontWeight: 700, color: r.color }}>{r.val}</span>
+              <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 18, fontWeight: 700, color: r.color }}>{r.val}</span>
             </div>
           ))}
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0 0' }}>
-            <span style={{ fontSize: 13, fontWeight: 700 }}>Moms at afregne</span>
-            <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 28, fontWeight: 700, color: '#9a6200' }}>{formatDKK(data.mrr.vat)}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 0' }}>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>Total MRR</span>
+            <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 22, fontWeight: 700 }}>{formatDKK(data.mrr.total)}</span>
           </div>
         </div>
 
+        {/* Nye køb */}
         <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
-          <div style={{ fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 16 }}>Hold — aldersfordeling</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-            {[
-              { label: 'Over 30', val: data.sessions.over30, pct: data.split_pct.over30, color: '#6b5ca5', bg: '#f2f0f9' },
-              { label: 'Under 30', val: data.sessions.under30, pct: data.split_pct.under30, color: '#2e8b6a', bg: '#e8f5ef' },
-            ].map((s, i) => (
-              <div key={i} style={{ background: s.bg, borderRadius: 8, padding: '14px' }}>
-                <div style={{ fontSize: 9, color: s.color, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 6 }}>{s.label}</div>
-                <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 28, fontWeight: 700, color: s.color }}>{s.val}</div>
-                <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 2 }}>{s.pct}% af deltagere</div>
+          <div style={{ fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 16 }}>Nye køb — klipkort og engangskøb</div>
+          {data.orders.breakdown.map((o, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #f0eef8' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{
+                  fontSize: 9, padding: '1px 6px', borderRadius: 8, fontWeight: 600,
+                  background: o.age_group === 'over30' ? '#f2f0f9' : o.age_group === 'under30' ? '#e8f5ef' : '#f0f0f0',
+                  color: o.age_group === 'over30' ? '#6b5ca5' : o.age_group === 'under30' ? '#2e8b6a' : '#666',
+                }}>
+                  {o.age_group === 'over30' ? '30+' : o.age_group === 'under30' ? 'U30' : 'Andet'}
+                </span>
+                <span style={{ fontSize: 12, color: '#1a1520' }}>{o.name} ×{o.count}</span>
               </div>
-            ))}
-          </div>
-          <div style={{ fontSize: 10, color: '#8a85a0' }}>
-            Baseret på {data.sessions.participants} deltagere fordelt på {data.sessions.total} hold
+              <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 16, fontWeight: 700 }}>{formatDKK(o.total)}</span>
+            </div>
+          ))}
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 0' }}>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>Total nye køb</span>
+            <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 22, fontWeight: 700 }}>{formatDKK(data.orders.total)}</span>
           </div>
         </div>
       </div>
@@ -295,9 +315,7 @@ export default function SplitsPage() {
               <div style={{ padding: '18px 20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#6b5ca5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff' }}>
-                      {f.instructor.initials}
-                    </div>
+                    <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#6b5ca5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff' }}>{f.instructor.initials}</div>
                     <div>
                       <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1520' }}>{f.instructor.name}</div>
                       <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 2 }}>{f.instructor.email || 'Ingen email'}</div>
