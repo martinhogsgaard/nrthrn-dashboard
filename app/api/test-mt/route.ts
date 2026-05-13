@@ -9,24 +9,24 @@ export async function GET() {
   const now = new Date()
   const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
   
-  const res = await fetch(
-    `https://nrthrnstrong.marianatek.com/api/credit_transactions?min_datetime=${start}&origination_type=purchase&per_page=5`,
-    { headers: MT_HEADERS }
-  )
-  const data = await res.json()
-
-  // Hent credit detaljer for første transaktion
-  const firstCreditId = data.data?.[0]?.relationships?.credit?.data?.id
-  let creditDetail = null
-  if (firstCreditId) {
-    const cr = await fetch(`https://nrthrnstrong.marianatek.com/api/credits/${firstCreditId}`, { headers: MT_HEADERS })
-    creditDetail = await cr.json()
+  let all: any[] = []
+  let page = 1
+  while (page <= 5) {
+    const res = await fetch(
+      `https://nrthrnstrong.marianatek.com/api/credit_transactions?min_datetime=${start}&origination_type=purchase&per_page=100&page=${page}`,
+      { headers: MT_HEADERS }
+    )
+    const data = await res.json()
+    all = [...all, ...(data.data || [])]
+    if (data.meta?.pagination?.pages <= page) break
+    page++
   }
 
-  return NextResponse.json({ 
-    status: res.status, 
-    count: data.meta?.pagination?.count,
-    first: data.data?.[0]?.attributes,
-    credit_detail: creditDetail?.data?.attributes
-  })
+  const names = all.reduce((acc: any, t: any) => {
+    const name = t.attributes.credit_name
+    acc[name] = (acc[name] || 0) + 1
+    return acc
+  }, {})
+
+  return NextResponse.json({ total: all.length, names })
 }
