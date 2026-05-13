@@ -18,26 +18,73 @@ export async function GET(request: Request) {
   const start = searchParams.get('start') || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
   const end = searchParams.get('end') || now.toISOString().split('T')[0]
 
-  // Hent sessions fra cache
+  // 1. MRR fra membership_cache
+  const { data: memberships } = await supabase
+    .from('membership_cache').select('*')
+    .eq('purchase_location_id', location).eq('status', 'active')
+    .gt('next_charge_date', new Date().toISOString())
+
+  const mrrOver30 = memberships?.filter(m => m.membership_name?.includes('30+')).reduce((s, m) => s + (m.renewal_rate || 0), 0) || 0
+  const mrrUnder30 = memberships?.filter(m => m.membership_name?.includes('under 30')).reduce((s, m) => s + (m.renewal_rate || 0), 0) || 0
+  const mrrOther = memberships?.filter(m => !m.membership_name?.includes('30+') && !m.membership_name?.includes('under 30')).reduce((s, m) => s + (m.renewal_rate || 0), 0) || 0
+  const totalMRR = mrrOver30 + mrrUnder30 + mrrOther
+
+  // 2. Nye køb fra orders
+  let allOrders: any[] = []
+  let page = 1
+  while (page <= 6) {
+    const res = await fetch(
+      `https://nrthrnstrong.marianatek.com/api/orders?min_datetime=${start}&per_page=100&page=${page}`,
+      { headers: MT_HEADERS }
+    )
+    const data = await res.json()
+    if (!data.data?.length) break
+    allOrders = [...allOrders, ...data.data]
+    if (data.meta?.pagination?.pages <= page) break
+    page++
+  }
+
+  const cphOrders = allOrders.filter(o =>
+    o.attributes.location === 'Copenhagen' &&
+    o.attributes.status === 'Completed' &&
+    o.attributes.total > 0
+  )
+
+  const ordersOver30 = cphOrders.filter(o => !o.attributes.summary?.[0]?.includes('under 30')).reduce((s, o) => s + o.attributes.total, 0)
+  const ordersUnder30 = cphOrders.filter(o => o.attributes.summary?.[0]?.includes('under 30')).reduce((s, o) => s + o.attributes.total, 0)
+  const totalOrders = cphOrders.reduce((s, o) => s + o.attributes.total, 0)
+
+  const ordersGrouped = cphOrders.reduce((acc: any, o: any) => {
+    const name = o.attributes.summary?.[0] || 'Ukendt'
+    if (!acc[name]) acc[name] = { count: 0, total: 0 }
+    acc[name].count++
+    acc[name].total += o.attributes.total
+    return acc
+  }, {})
+
+  const ordersBreakdown = Object.entries(ordersGrouped).map(([name, d]: [string, any]) => ({
+    name, count: d.count, total: Math.round(d.total),
+    age_group: name.includes('30+') ? 'over30' : name.includes('under 30') ? 'under30' : 'other',
+  })).sort((a, b) => b.total - a.total)
+
+  // 3. Samlet
+  const totalOver30 = mrrOver30 + mrrOther + ordersOver30
+  const totalUnder30 = mrrUnder30 + ordersUnder30
+  const totalRevenue = totalOver30 + totalUnder30
+  const vatAmount = Math.round(totalOver30 * 0.25)
+  const over30Pct = totalRevenue > 0 ? Math.round(totalOver30 / totalRevenue * 100) : 57
+  const under30Pct = 100 - over30Pct
+
+  // 4. Sessions og instruktører
   const { data: sessions } = await supabase
-    .from('sessions_cache')
-    .select('*')
-    .eq('location_id', location)
-    .gte('date', start)
-    .lte('date', end)
+    .from('sessions_cache').select('*')
+    .eq('location_id', location).gte('date', start).lte('date', end)
 
-  // Hent instruktører
   const { data: instructors } = await supabase
-    .from('instructors')
-    .select('*, salary_rates(*)')
-    .eq('is_active', true)
+    .from('instructors').select('*, salary_rates(*)').eq('is_active', true)
 
-  // Hent settings for lønsatser
   const { data: settingsData } = await supabase
-    .from('settings')
-    .select('*')
-    .eq('key', 'salary_defaults')
-    .single()
+    .from('settings').select('*').eq('key', 'salary_defaults').single()
 
   const defaults = settingsData?.value || {
     junior_rate: 300, senior_rate: 500,
@@ -46,19 +93,6 @@ export async function GET(request: Request) {
     senior_bonus_tier_2: 20, senior_bonus_tier_3: 35, senior_bonus_tier_4: 50,
   }
 
-  // Hent over/under 30 fra members
-  const { data: members } = await supabase
-    .from('members')
-    .select('mariana_tek_user_id, is_over_30')
-    .not('birth_date', 'is', null)
-
-  const over30Ids = new Set(members?.filter(m => m.is_over_30).map(m => m.mariana_tek_user_id) || [])
-  const under30Ids = new Set(members?.filter(m => !m.is_over_30).map(m => m.mariana_tek_user_id) || [])
-  const totalKnown = over30Ids.size + under30Ids.size
-  const over30Pct = totalKnown > 0 ? over30Ids.size / totalKnown : 0.576
-  const under30Pct = totalKnown > 0 ? under30Ids.size / totalKnown : 0.424
-
-  // Beregn bonus
   function calcBonus(participants: number, rate: any, level: string) {
     const t1 = rate?.bonus_threshold_1 || defaults.bonus_threshold_1
     const t2 = rate?.bonus_threshold_2 || defaults.bonus_threshold_2
@@ -66,16 +100,13 @@ export async function GET(request: Request) {
     const tier2 = rate?.bonus_tier_2 || (level === 'senior' ? defaults.senior_bonus_tier_2 : defaults.junior_bonus_tier_2)
     const tier3 = rate?.bonus_tier_3 || (level === 'senior' ? defaults.senior_bonus_tier_3 : defaults.junior_bonus_tier_3)
     const tier4 = rate?.bonus_tier_4 || (level === 'senior' ? defaults.senior_bonus_tier_4 : defaults.junior_bonus_tier_4)
-
     if (participants <= t1) return 0
     if (participants <= t2) return (participants - t1) * tier2
     if (participants <= t3) return (t2 - t1) * tier2 + (participants - t2) * tier3
     return (t2 - t1) * tier2 + (t3 - t2) * tier3 + (participants - t3) * tier4
   }
 
-  // Beregn pr. selvstændig instruktør
   const freelancers = (instructors || []).filter(i => i.employment_type === 'freelance')
-
   const freelancerData = freelancers.map(instructor => {
     const rate = instructor.salary_rates?.find((r: any) => !r.valid_to)
     const baseRate = rate?.rate_per_class || (instructor.level === 'senior' ? defaults.senior_rate : defaults.junior_rate)
@@ -87,39 +118,29 @@ export async function GET(request: Request) {
 
     const sessionDetails = instrSessions.map(s => {
       const total = s.participants || 0
-      const over30 = Math.round(total * over30Pct)
+      const over30 = Math.round(total * over30Pct / 100)
       const under30 = total - over30
       const bonus = calcBonus(total, rate, instructor.level)
       const totalAmount = baseRate + bonus
-
-      // Split faktura
-      const over30Amount = totalAmount * over30Pct
-      const under30Amount = totalAmount * under30Pct
-      const vatAmount = over30Amount * 0.25
-
+      const over30Amount = totalAmount * over30Pct / 100
+      const under30Amount = totalAmount * under30Pct / 100
+      const vatAmt = Math.round(over30Amount * 0.25)
       return {
-        date: s.date,
-        class_name: s.class_type,
-        participants: total,
-        over30,
-        under30,
-        base_rate: baseRate,
-        bonus,
+        date: s.date, class_name: s.class_type,
+        participants: total, over30, under30,
+        base_rate: baseRate, bonus,
         total_amount: Math.round(totalAmount),
         over30_amount: Math.round(over30Amount),
         under30_amount: Math.round(under30Amount),
-        vat_amount: Math.round(vatAmount),
-        invoice_total: Math.round(totalAmount + vatAmount * over30Pct),
+        vat_amount: vatAmt,
+        invoice_total: Math.round(totalAmount + vatAmt * over30Pct / 100),
       }
     })
 
     const totals = sessionDetails.reduce((acc, s) => ({
-      sessions: acc.sessions + 1,
-      participants: acc.participants + s.participants,
-      over30: acc.over30 + s.over30,
-      under30: acc.under30 + s.under30,
-      base_total: acc.base_total + s.base_rate,
-      bonus_total: acc.bonus_total + s.bonus,
+      sessions: acc.sessions + 1, participants: acc.participants + s.participants,
+      over30: acc.over30 + s.over30, under30: acc.under30 + s.under30,
+      base_total: acc.base_total + s.base_rate, bonus_total: acc.bonus_total + s.bonus,
       amount_excl_vat: acc.amount_excl_vat + s.total_amount,
       over30_amount: acc.over30_amount + s.over30_amount,
       under30_amount: acc.under30_amount + s.under30_amount,
@@ -128,52 +149,18 @@ export async function GET(request: Request) {
     }), { sessions: 0, participants: 0, over30: 0, under30: 0, base_total: 0, bonus_total: 0, amount_excl_vat: 0, over30_amount: 0, under30_amount: 0, vat_amount: 0, invoice_total: 0 })
 
     return {
-      instructor: {
-        id: instructor.id,
-        name: instructor.name,
-        initials: instructor.initials,
-        email: instructor.email,
-        level: instructor.level,
-      },
-      sessions: sessionDetails,
-      totals,
+      instructor: { id: instructor.id, name: instructor.name, initials: instructor.initials, email: instructor.email, level: instructor.level },
+      sessions: sessionDetails, totals,
     }
   }).filter(f => f.totals.sessions > 0)
 
-  // Samlet moms-oversigt
-  const allSessions = (sessions || [])
-  const totalParticipants = allSessions.reduce((s, x) => s + (x.participants || 0), 0)
-  const totalOver30 = Math.round(totalParticipants * over30Pct)
-  const totalUnder30 = totalParticipants - totalOver30
-
-  // Estimeret omsætning fra membership_cache
-  const { data: memberships } = await supabase
-    .from('membership_cache')
-    .select('renewal_rate, membership_name')
-    .eq('purchase_location_id', location)
-    .eq('status', 'active')
-    .gt('next_charge_date', new Date().toISOString())
-
-  const totalMRR = memberships?.reduce((s, m) => s + (m.renewal_rate || 0), 0) || 0
-  const over30MRR = Math.round(totalMRR * over30Pct)
-  const under30MRR = Math.round(totalMRR * under30Pct)
-  const vatAmount = Math.round(over30MRR * 0.25)
-
   return NextResponse.json({
     period: { start, end },
-    split_pct: { over30: Math.round(over30Pct * 100), under30: Math.round(under30Pct * 100) },
-    mrr: {
-      total: totalMRR,
-      over30: over30MRR,
-      under30: under30MRR,
-      vat: vatAmount,
-    },
-    sessions: {
-      total: allSessions.length,
-      participants: totalParticipants,
-      over30: totalOver30,
-      under30: totalUnder30,
-    },
+    split_pct: { over30: over30Pct, under30: under30Pct },
+    mrr: { total: Math.round(totalMRR), over30: Math.round(mrrOver30 + mrrOther), under30: Math.round(mrrUnder30), vat: Math.round((mrrOver30 + mrrOther) * 0.25) },
+    orders: { total: Math.round(totalOrders), over30: Math.round(ordersOver30), under30: Math.round(ordersUnder30), vat: Math.round(ordersOver30 * 0.25), breakdown: ordersBreakdown },
+    total_revenue: { total: Math.round(totalRevenue), over30: Math.round(totalOver30), under30: Math.round(totalUnder30), vat: vatAmount },
+    sessions: { total: sessions?.length || 0, participants: sessions?.reduce((s, x) => s + (x.participants || 0), 0) || 0 },
     freelancers: freelancerData,
   })
 }
