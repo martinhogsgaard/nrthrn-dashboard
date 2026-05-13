@@ -163,10 +163,10 @@ export default function MembersPage() {
           <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
             <div style={{ fontSize: 9, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 16 }}>Fødselsdato dækning</div>
             <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 36, fontWeight: 700, color: '#1a1520', marginBottom: 4 }}>
-              {stats ? Math.round(stats.birthdate_coverage / stats.total_active * 100) : 0}%
+              {stats ? Math.round(stats.birthdate_coverage / Math.max(stats.birthdate_coverage, stats.total_active) * 100) : 0}%
             </div>
             <div style={{ fontSize: 11, color: '#8a85a0', marginBottom: 14 }}>
-              {stats?.birthdate_coverage} af {stats?.total_active} aktive har fødselsdato
+              {stats?.birthdate_coverage} med fødselsdato · {stats?.total_active} aktive abonnementer
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <div style={{ flex: 1, background: '#f2f0f9', border: '1px solid #d0c8e8', borderRadius: 8, padding: '12px 14px' }}>
