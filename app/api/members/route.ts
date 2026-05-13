@@ -32,7 +32,8 @@ export async function GET(request: Request) {
 
   const grouped = data.reduce((acc: any, t: any) => {
     const name = t.membership_name
-    const price = t.renewal_rate || MEMBERSHIP_PRICES[name] || 0
+    const price = t.renewal_rate || 0    
+    if (!acc[name]) acc[name] = { count: 0, price }
     if (!acc[name]) acc[name] = { count: 0, price }
     acc[name].count++
     return acc
