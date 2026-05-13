@@ -9,10 +9,13 @@ interface MembershipType {
   price: number
   mrr: number
   age_group: 'over30' | 'under30' | 'other'
+  is_free: boolean
 }
 
 interface MemberStats {
   total_active: number
+  paying_members: number
+  free_members: number
   total_mrr: number
   over30_count: number
   under30_count: number
@@ -24,14 +27,16 @@ interface MemberStats {
 export default function MembersPage() {
   const [stats, setStats] = useState<MemberStats | null>(null)
   const [memberships, setMemberships] = useState<MembershipType[]>([])
+  const [freeMemberships, setFreeMemberships] = useState<MembershipType[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/members')
+    fetch('/api/members?location=48718')
       .then(r => r.json())
       .then(data => {
         setStats(data.stats)
         setMemberships(data.memberships)
+        setFreeMemberships(data.free_memberships || [])
         setLoading(false)
       })
   }, [])
@@ -40,7 +45,7 @@ export default function MembersPage() {
   const under30MRR = memberships.filter(m => m.age_group === 'under30').reduce((s, m) => s + m.mrr, 0)
   const otherMRR = memberships.filter(m => m.age_group === 'other').reduce((s, m) => s + m.mrr, 0)
 
-  if (loading) return <div style={{ padding: 40, color: '#8a85a0', textAlign: 'center' }}>Henter medlemsdata fra Mariana Tek...</div>
+  if (loading) return <div style={{ padding: 40, color: '#8a85a0', textAlign: 'center' }}>Henter medlemsdata...</div>
 
   return (
     <div>
@@ -49,8 +54,8 @@ export default function MembersPage() {
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
         {[
-          { label: 'Aktive medlemmer', val: stats?.total_active || 0, sub: 'Aktive abonnementer' },
-          { label: 'MRR', val: formatDKK(stats?.total_mrr || 0), sub: 'Månedlig tilbagevendende indtægt' },
+          { label: 'Aktive medlemmer', val: stats?.total_active || 0, sub: `${stats?.paying_members} betalende · ${stats?.free_members} gratis` },
+          { label: 'MRR', val: formatDKK(stats?.total_mrr || 0), sub: 'Betalende abonnementer' },
           { label: '30+ abonnenter', val: stats?.over30_count || 0, sub: `MRR: ${formatDKK(over30MRR)}`, color: '#6b5ca5' },
           { label: 'Under 30 abonnenter', val: stats?.under30_count || 0, sub: `MRR: ${formatDKK(under30MRR)}`, color: '#2e8b6a' },
         ].map((k, i) => (
@@ -64,42 +69,68 @@ export default function MembersPage() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 20 }}>
 
-        {/* Abonnementsoversigt */}
-        <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
-          <div style={{ fontSize: 9, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 18 }}>Aktive abonnementer</div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-            <thead>
-              <tr>
-                {['Abonnement', 'Antal', 'Pris/mdr.', 'MRR', ''].map(h => (
-                  <th key={h} style={{ fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, padding: '0 10px 12px 0', borderBottom: '2px solid #e4e0f0', textAlign: 'left' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {memberships.map((m, idx) => (
-                <tr key={idx}>
-                  <td style={{ padding: '10px 10px 10px 0', borderBottom: '1px solid #f0eef8', fontWeight: 500 }}>{m.name}</td>
-                  <td style={{ padding: '10px 10px 10px 0', borderBottom: '1px solid #f0eef8', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 18, fontWeight: 700, color: '#1a1520' }}>{m.count}</td>
-                  <td style={{ padding: '10px 10px 10px 0', borderBottom: '1px solid #f0eef8', color: '#4a4560' }}>
-                    {m.price > 0 ? `${m.price.toLocaleString('da-DK')} kr.` : '—'}
-                  </td>
-                  <td style={{ padding: '10px 10px 10px 0', borderBottom: '1px solid #f0eef8', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 16, fontWeight: 700, color: '#1a1520' }}>
-                    {m.mrr > 0 ? formatDKK(m.mrr) : '—'}
-                  </td>
-                  <td style={{ padding: '10px 0', borderBottom: '1px solid #f0eef8' }}>
-                    <span style={{
-                      fontSize: 9, padding: '2px 8px', borderRadius: 10, fontWeight: 600,
-                      background: m.age_group === 'over30' ? '#f2f0f9' : m.age_group === 'under30' ? '#e8f5ef' : '#f0f0f0',
-                      color: m.age_group === 'over30' ? '#6b5ca5' : m.age_group === 'under30' ? '#2e8b6a' : '#666',
-                      border: `1px solid ${m.age_group === 'over30' ? '#d0c8e8' : m.age_group === 'under30' ? '#b0d8c4' : '#d8d8d8'}`,
-                    }}>
-                      {m.age_group === 'over30' ? '30+' : m.age_group === 'under30' ? 'U30' : 'Andet'}
-                    </span>
-                  </td>
+        {/* Betalende abonnementer */}
+        <div>
+          <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24, marginBottom: 16 }}>
+            <div style={{ fontSize: 9, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 18 }}>Betalende abonnementer</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr>
+                  {['Abonnement', 'Antal', 'Pris/mdr.', 'MRR', ''].map(h => (
+                    <th key={h} style={{ fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, padding: '0 10px 12px 0', borderBottom: '2px solid #e4e0f0', textAlign: 'left' }}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {memberships.map((m, idx) => (
+                  <tr key={idx}>
+                    <td style={{ padding: '10px 10px 10px 0', borderBottom: '1px solid #f0eef8', fontWeight: 500 }}>{m.name}</td>
+                    <td style={{ padding: '10px 10px 10px 0', borderBottom: '1px solid #f0eef8', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 18, fontWeight: 700 }}>{m.count}</td>
+                    <td style={{ padding: '10px 10px 10px 0', borderBottom: '1px solid #f0eef8', color: '#4a4560' }}>{m.price.toLocaleString('da-DK')} kr.</td>
+                    <td style={{ padding: '10px 10px 10px 0', borderBottom: '1px solid #f0eef8', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 16, fontWeight: 700 }}>{formatDKK(m.mrr)}</td>
+                    <td style={{ padding: '10px 0', borderBottom: '1px solid #f0eef8' }}>
+                      <span style={{
+                        fontSize: 9, padding: '2px 8px', borderRadius: 10, fontWeight: 600,
+                        background: m.age_group === 'over30' ? '#f2f0f9' : m.age_group === 'under30' ? '#e8f5ef' : '#f0f0f0',
+                        color: m.age_group === 'over30' ? '#6b5ca5' : m.age_group === 'under30' ? '#2e8b6a' : '#666',
+                        border: `1px solid ${m.age_group === 'over30' ? '#d0c8e8' : m.age_group === 'under30' ? '#b0d8c4' : '#d8d8d8'}`,
+                      }}>
+                        {m.age_group === 'over30' ? '30+' : m.age_group === 'under30' ? 'U30' : 'Andet'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Gratis/inkluderede abonnementer */}
+          {freeMemberships.length > 0 && (
+            <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
+                <div style={{ fontSize: 9, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700 }}>Gratis / inkluderede abonnementer</div>
+                <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 10, background: '#fff3d4', color: '#9a6200', border: '1px solid #f0d080', fontWeight: 600 }}>{stats?.free_members} i alt</span>
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr>
+                    {['Abonnement', 'Antal', 'MRR'].map(h => (
+                      <th key={h} style={{ fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, padding: '0 10px 12px 0', borderBottom: '2px solid #e4e0f0', textAlign: 'left' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {freeMemberships.map((m, idx) => (
+                    <tr key={idx}>
+                      <td style={{ padding: '10px 10px 10px 0', borderBottom: '1px solid #f0eef8', fontWeight: 500 }}>{m.name}</td>
+                      <td style={{ padding: '10px 10px 10px 0', borderBottom: '1px solid #f0eef8', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 18, fontWeight: 700 }}>{m.count}</td>
+                      <td style={{ padding: '10px 0', borderBottom: '1px solid #f0eef8', color: '#8a85a0' }}>— kr.</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Højre side */}
@@ -135,7 +166,7 @@ export default function MembersPage() {
               {stats ? Math.round(stats.birthdate_coverage / stats.total_active * 100) : 0}%
             </div>
             <div style={{ fontSize: 11, color: '#8a85a0', marginBottom: 14 }}>
-              {stats?.birthdate_coverage} af {stats?.total_active} aktive deltagere har fødselsdato
+              {stats?.birthdate_coverage} af {stats?.total_active} aktive har fødselsdato
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <div style={{ flex: 1, background: '#f2f0f9', border: '1px solid #d0c8e8', borderRadius: 8, padding: '12px 14px' }}>
@@ -155,7 +186,7 @@ export default function MembersPage() {
             </div>
             {stats && stats.birthdate_coverage < stats.total_active && (
               <div style={{ marginTop: 12, background: '#fff3d4', border: '1px solid #f0d080', borderRadius: 8, padding: '10px 14px', fontSize: 11, color: '#9a6200' }}>
-                ⚠ {stats.total_active - stats.birthdate_coverage} deltagere mangler fødselsdato — bed dem udfylde det i Mariana Tek for præcis split-moms
+                ⚠ {stats.total_active - stats.birthdate_coverage} mangler fødselsdato
               </div>
             )}
           </div>
