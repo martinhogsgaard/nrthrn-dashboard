@@ -118,9 +118,31 @@ export async function GET(request: Request) {
   .filter(s => s.capacity > 0 && s.capacity < 50 && s.participants > 0 && s.participants / s.capacity < 0.4)
     .sort((a, b) => (a.participants / a.capacity) - (b.participants / b.capacity)).slice(0, 3)
 
+   // Hent total salg fra orders denne måned
+  let allOrders: any[] = []
+  let ordersPage = 1
+  while (ordersPage <= 10) {
+    const ordersRes = await fetch(
+      `https://nrthrnstrong.marianatek.com/api/orders?min_datetime=${monthStart}&per_page=100&page=${ordersPage}`,
+      { headers: { 'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`, 'Content-Type': 'application/json' } }
+    )
+    const ordersData = await ordersRes.json()
+    if (!ordersData.data?.length) break
+    allOrders = [...allOrders, ...ordersData.data]
+    if (ordersData.meta?.pagination?.pages <= ordersPage) break
+    ordersPage++
+  }
+  const cphOrders = allOrders.filter(o =>
+    o.attributes.location === 'Copenhagen' &&
+    o.attributes.status === 'Completed' &&
+    o.attributes.total > 0
+  )
+  const totalSales = Math.round(cphOrders.reduce((s, o) => s + o.attributes.total, 0))
   return NextResponse.json({
     period: { start: monthStart, today, end: monthEnd },
     mrr: totalMRR,
+    total_sales: totalSales,
+    total_revenue: Math.round(totalMRR + totalSales),
     members: memberships?.length || 0,
     new_members: newMembersData?.length || 0,
     avg_visits: avgVisits,
