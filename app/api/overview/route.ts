@@ -104,7 +104,26 @@ export async function GET(request: Request) {
     .filter(s => s.capacity > 0 && s.capacity < 50 && s.participants > 0 && s.participants / s.capacity < 0.4)
     .sort((a, b) => (a.participants / a.capacity) - (b.participants / b.capacity)).slice(0, 3)
 
-  // Orders — hent alle og filtrer på date_placed i koden (MT ignorerer max_datetime)
+  // Bruce — besøg og indtægt denne måned
+  const { data: bruceSessions } = await supabase
+    .from('sessions_cache')
+    .select('date, bruce_spots')
+    .eq('location_id', location)
+    .gte('date', monthStart)
+    .lte('date', today)
+    .gt('bruce_spots', 0)
+
+  const { data: bruceRateData } = await supabase
+    .from('bruce_rates')
+    .select('rate_per_visit')
+    .eq('month', monthStart)
+    .single()
+
+  const bruceRate = bruceRateData?.rate_per_visit || 95
+  const totalBruceVisits = bruceSessions?.reduce((s, x) => s + (x.bruce_spots || 0), 0) || 0
+  const bruceRevenue = Math.round(totalBruceVisits * bruceRate)
+
+  // Orders — hent alle og filtrer på date_placed i koden
   let allOrders: any[] = []
   let ordersPage = 1
   while (ordersPage <= 10) {
@@ -128,18 +147,23 @@ export async function GET(request: Request) {
   )
   const totalSales = Math.round(cphOrders.reduce((s, o) => s + o.attributes.total, 0))
 
-  // Split% beregnet på MRR + orders
+  // Split% beregnet på MRR + orders + bruce
   const ordersOver30 = cphOrders
     .filter(o => !o.attributes.summary?.[0]?.includes('under 30'))
     .reduce((s, o) => s + o.attributes.total, 0)
-  const totalOver30 = mrrOver30 + mrrOther + ordersOver30
-  const totalRevenue = totalMRR + totalSales
+  const totalOver30 = mrrOver30 + mrrOther + ordersOver30 + bruceRevenue
+  const totalRevenue = totalMRR + totalSales + bruceRevenue
   const splitPct = totalRevenue > 0 ? Math.round(totalOver30 / totalRevenue * 100) : 0
 
   return NextResponse.json({
     period: { start: monthStart, today, end: monthEnd },
     mrr: totalMRR,
     total_sales: totalSales,
+    bruce: {
+      visits: totalBruceVisits,
+      revenue: bruceRevenue,
+      rate: bruceRate,
+    },
     total_revenue: Math.round(totalRevenue),
     members: memberships?.length || 0,
     new_members: newMembersData?.length || 0,
