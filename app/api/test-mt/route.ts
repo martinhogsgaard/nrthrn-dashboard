@@ -6,33 +6,45 @@ const MT_HEADERS = {
 }
 
 export async function GET() {
-  const today = '2026-05-13'
-  
-  // Hent reservationer fra 13. maj med alle tags
+  // Hent sessions fra 13. maj og deres reservationer med tags
   const res = await fetch(
-    `https://nrthrnstrong.marianatek.com/api/reservations?min_datetime=${today}T00:00:00Z&max_datetime=${today}T23:59:59Z&per_page=100&include=tags`,
+    `https://nrthrnstrong.marianatek.com/api/class_sessions?min_date=2026-05-13&max_date=2026-05-13&location=48718&per_page=50`,
     { headers: MT_HEADERS }
   )
   const data = await res.json()
 
-  // Find alle unikke tags
-  const allTags = new Set<string>()
-  data.included?.forEach((i: any) => {
-    if (i.type === 'reservation_tags') allTags.add(i.attributes.name)
-  })
+  let allTags: Record<string, number> = {}
+  let bruceCount = 0
+  let firstTimerCount = 0
+  let unconvertedCount = 0
 
-  // Tæl reservationer pr. tag kombination
-  const tagCombos: Record<string, number> = {}
-  for (const r of data.data || []) {
-    const rTags = r.relationships?.tags?.data?.map((t: any) => 
-      data.included?.find((i: any) => i.id === t.id)?.attributes?.name
-    ).filter(Boolean).sort().join(' + ') || 'Ingen tags'
-    tagCombos[rTags] = (tagCombos[rTags] || 0) + 1
+  for (const session of data.data || []) {
+    const reservationIds = session.relationships?.reservations?.data?.map((r: any) => r.id) || []
+    
+    for (const resId of reservationIds) {
+      const r = await fetch(
+        `https://nrthrnstrong.marianatek.com/api/reservations/${resId}?include=tags`,
+        { headers: MT_HEADERS }
+      )
+      const rd = await r.json()
+      
+      const brokerId = rd.data?.relationships?.broker?.data?.id
+      const tags = rd.included?.map((t: any) => t.attributes?.name) || []
+      
+      if (brokerId === '53027') bruceCount++
+      tags.forEach((t: string) => {
+        allTags[t] = (allTags[t] || 0) + 1
+        if (t.toLowerCase().includes('first')) firstTimerCount++
+        if (t.toLowerCase().includes('unconverted')) unconvertedCount++
+      })
+    }
   }
 
   return NextResponse.json({ 
-    total: data.meta?.pagination?.count,
-    unique_tags: [...allTags],
-    tag_combinations: tagCombos
+    sessions: data.data?.length,
+    bruce: bruceCount,
+    first_timer_tags: firstTimerCount,
+    unconverted_tags: unconvertedCount,
+    all_tags: allTags
   })
 }
