@@ -58,7 +58,7 @@ async function syncLocation(locationId, locationName, start, end) {
     process.stdout.write(`\r  Gennemgår session ${i + 1}/${allSessions.length} — ${toInsert.length} first timers fundet...`)
 
     const data = await fetchJSON(
-      `${MT_BASE}/reservations?class_session=${session.id}&status=checked_in&per_page=100&include=user`
+      `${MT_BASE}/reservations?class_session=${session.id}reservations?class_session=${session.id}&status=checked_instatus=check+in&per_page=100&include=user`
     )
     if (!data.data) continue
 
