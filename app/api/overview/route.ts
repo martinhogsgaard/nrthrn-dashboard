@@ -64,7 +64,6 @@ export async function GET(request: Request) {
 
   const totalMRR = memberships?.reduce((s, m) => s + (m.renewal_rate || 0), 0) || 0
   const mrrOver30 = memberships?.filter(m => m.membership_name?.includes('30+')).reduce((s, m) => s + (m.renewal_rate || 0), 0) || 0
-  const mrrUnder30 = memberships?.filter(m => m.membership_name?.includes('under 30')).reduce((s, m) => s + (m.renewal_rate || 0), 0) || 0
   const mrrOther = memberships?.filter(m => !m.membership_name?.includes('30+') && !m.membership_name?.includes('under 30')).reduce((s, m) => s + (m.renewal_rate || 0), 0) || 0
 
   // Over/under 30 antal til visning
@@ -105,12 +104,12 @@ export async function GET(request: Request) {
     .filter(s => s.capacity > 0 && s.capacity < 50 && s.participants > 0 && s.participants / s.capacity < 0.4)
     .sort((a, b) => (a.participants / a.capacity) - (b.participants / b.capacity)).slice(0, 3)
 
-  // Orders — med max_datetime=today så vi matcher splits-endpointet
+  // Orders — hent alle og filtrer på date_placed i koden (MT ignorerer max_datetime)
   let allOrders: any[] = []
   let ordersPage = 1
   while (ordersPage <= 10) {
     const ordersRes = await fetch(
-      `https://nrthrnstrong.marianatek.com/api/orders?min_datetime=${monthStart}&max_datetime=${today}&per_page=100&page=${ordersPage}`,
+      `https://nrthrnstrong.marianatek.com/api/orders?min_datetime=${monthStart}&per_page=100&page=${ordersPage}`,
       { headers: { 'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`, 'Content-Type': 'application/json' } }
     )
     const ordersData = await ordersRes.json()
@@ -123,11 +122,13 @@ export async function GET(request: Request) {
   const cphOrders = allOrders.filter(o =>
     o.attributes.location === 'Copenhagen' &&
     o.attributes.status === 'Completed' &&
-    o.attributes.total > 0
+    o.attributes.total > 0 &&
+    o.attributes.date_placed >= monthStart &&
+    o.attributes.date_placed <= today + 'T23:59:59Z'
   )
   const totalSales = Math.round(cphOrders.reduce((s, o) => s + o.attributes.total, 0))
 
-  // Split% beregnet på MRR + orders — samme logik som splits endpoint
+  // Split% beregnet på MRR + orders
   const ordersOver30 = cphOrders
     .filter(o => !o.attributes.summary?.[0]?.includes('under 30'))
     .reduce((s, o) => s + o.attributes.total, 0)

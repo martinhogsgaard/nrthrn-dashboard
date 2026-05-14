@@ -29,10 +29,10 @@ export async function GET(request: Request) {
   const mrrOther = memberships?.filter(m => !m.membership_name?.includes('30+') && !m.membership_name?.includes('under 30')).reduce((s, m) => s + (m.renewal_rate || 0), 0) || 0
   const totalMRR = mrrOver30 + mrrUnder30 + mrrOther
 
-  // 2. Nye køb fra orders
+  // 2. Orders — hent alle og filtrer på date_placed i koden (MT ignorerer max_datetime)
   let allOrders: any[] = []
   let page = 1
-  while (page <= 6) {
+  while (page <= 10) {
     const res = await fetch(
       `https://nrthrnstrong.marianatek.com/api/orders?min_datetime=${start}&per_page=100&page=${page}`,
       { headers: MT_HEADERS }
@@ -47,7 +47,9 @@ export async function GET(request: Request) {
   const cphOrders = allOrders.filter(o =>
     o.attributes.location === 'Copenhagen' &&
     o.attributes.status === 'Completed' &&
-    o.attributes.total > 0
+    o.attributes.total > 0 &&
+    o.attributes.date_placed >= start &&
+    o.attributes.date_placed <= end + 'T23:59:59Z'
   )
 
   const ordersOver30 = cphOrders.filter(o => !o.attributes.summary?.[0]?.includes('under 30')).reduce((s, o) => s + o.attributes.total, 0)
@@ -67,7 +69,7 @@ export async function GET(request: Request) {
     age_group: name.includes('30+') ? 'over30' : name.includes('under 30') ? 'under30' : 'other',
   })).sort((a, b) => b.total - a.total)
 
-  // 3. Samlet — mrrOther er fuldt momspligtigt (ingen aldersreduktion)
+  // 3. Samlet
   const totalOver30 = mrrOver30 + mrrOther + ordersOver30
   const totalUnder30 = mrrUnder30 + ordersUnder30
   const totalRevenue = totalOver30 + totalUnder30
@@ -118,16 +120,11 @@ export async function GET(request: Request) {
 
     const sessionDetails = instrSessions.map(s => {
       const total = s.participants || 0
-
-      // Brug præcise tal fra sessions_cache hvis de findes, ellers estimer
       const over30 = s.participants_over_30 !== null && s.participants_over_30 !== undefined
-        ? s.participants_over_30
-        : Math.round(total * over30Pct / 100)
+        ? s.participants_over_30 : Math.round(total * over30Pct / 100)
       const under30 = s.participants_under_30 !== null && s.participants_under_30 !== undefined
-        ? s.participants_under_30
-        : total - over30
+        ? s.participants_under_30 : total - over30
 
-      // Beregn split baseret på faktiske deltagertal
       const sessionOver30Pct = total > 0 ? over30 / total : over30Pct / 100
       const sessionUnder30Pct = total > 0 ? under30 / total : under30Pct / 100
 
@@ -138,14 +135,10 @@ export async function GET(request: Request) {
       const vatAmt = Math.round(over30Amount * 0.25)
 
       return {
-        date: s.date,
-        class_name: s.class_type,
-        participants: total,
-        over30,
-        under30,
+        date: s.date, class_name: s.class_type,
+        participants: total, over30, under30,
         is_estimated: s.participants_over_30 === null || s.participants_over_30 === undefined,
-        base_rate: baseRate,
-        bonus,
+        base_rate: baseRate, bonus,
         total_amount: Math.round(totalAmount),
         over30_amount: Math.round(over30Amount),
         under30_amount: Math.round(under30Amount),
@@ -155,12 +148,9 @@ export async function GET(request: Request) {
     })
 
     const totals = sessionDetails.reduce((acc, s) => ({
-      sessions: acc.sessions + 1,
-      participants: acc.participants + s.participants,
-      over30: acc.over30 + s.over30,
-      under30: acc.under30 + s.under30,
-      base_total: acc.base_total + s.base_rate,
-      bonus_total: acc.bonus_total + s.bonus,
+      sessions: acc.sessions + 1, participants: acc.participants + s.participants,
+      over30: acc.over30 + s.over30, under30: acc.under30 + s.under30,
+      base_total: acc.base_total + s.base_rate, bonus_total: acc.bonus_total + s.bonus,
       amount_excl_vat: acc.amount_excl_vat + s.total_amount,
       over30_amount: acc.over30_amount + s.over30_amount,
       under30_amount: acc.under30_amount + s.under30_amount,
@@ -170,8 +160,7 @@ export async function GET(request: Request) {
 
     return {
       instructor: { id: instructor.id, name: instructor.name, initials: instructor.initials, email: instructor.email, level: instructor.level },
-      sessions: sessionDetails,
-      totals,
+      sessions: sessionDetails, totals,
     }
   }).filter(f => f.totals.sessions > 0)
 
