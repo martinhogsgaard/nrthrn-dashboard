@@ -67,12 +67,12 @@ export async function GET(request: Request) {
     age_group: name.includes('30+') ? 'over30' : name.includes('under 30') ? 'under30' : 'other',
   })).sort((a, b) => b.total - a.total)
 
-  // 3. Samlet
+  // 3. Samlet — mrrOther er fuldt momspligtigt (ingen aldersreduktion)
   const totalOver30 = mrrOver30 + mrrOther + ordersOver30
   const totalUnder30 = mrrUnder30 + ordersUnder30
   const totalRevenue = totalOver30 + totalUnder30
   const vatAmount = Math.round(totalOver30 * 0.25)
-  const over30Pct = totalRevenue > 0 ? Math.round(totalOver30 / totalRevenue * 100) : 57
+  const over30Pct = totalRevenue > 0 ? Math.round(totalOver30 / totalRevenue * 100) : 0
   const under30Pct = 100 - over30Pct
 
   // 4. Sessions og instruktører
@@ -118,29 +118,49 @@ export async function GET(request: Request) {
 
     const sessionDetails = instrSessions.map(s => {
       const total = s.participants || 0
-      const over30 = Math.round(total * over30Pct / 100)
-      const under30 = total - over30
+
+      // Brug præcise tal fra sessions_cache hvis de findes, ellers estimer
+      const over30 = s.participants_over_30 !== null && s.participants_over_30 !== undefined
+        ? s.participants_over_30
+        : Math.round(total * over30Pct / 100)
+      const under30 = s.participants_under_30 !== null && s.participants_under_30 !== undefined
+        ? s.participants_under_30
+        : total - over30
+
+      // Beregn split baseret på faktiske deltagertal
+      const sessionOver30Pct = total > 0 ? over30 / total : over30Pct / 100
+      const sessionUnder30Pct = total > 0 ? under30 / total : under30Pct / 100
+
       const bonus = calcBonus(total, rate, instructor.level)
       const totalAmount = baseRate + bonus
-      const over30Amount = totalAmount * over30Pct / 100
-      const under30Amount = totalAmount * under30Pct / 100
+      const over30Amount = totalAmount * sessionOver30Pct
+      const under30Amount = totalAmount * sessionUnder30Pct
       const vatAmt = Math.round(over30Amount * 0.25)
+
       return {
-        date: s.date, class_name: s.class_type,
-        participants: total, over30, under30,
-        base_rate: baseRate, bonus,
+        date: s.date,
+        class_name: s.class_type,
+        participants: total,
+        over30,
+        under30,
+        is_estimated: s.participants_over_30 === null || s.participants_over_30 === undefined,
+        base_rate: baseRate,
+        bonus,
         total_amount: Math.round(totalAmount),
         over30_amount: Math.round(over30Amount),
         under30_amount: Math.round(under30Amount),
         vat_amount: vatAmt,
-        invoice_total: Math.round(totalAmount + vatAmt * over30Pct / 100),
+        invoice_total: Math.round(totalAmount + vatAmt),
       }
     })
 
     const totals = sessionDetails.reduce((acc, s) => ({
-      sessions: acc.sessions + 1, participants: acc.participants + s.participants,
-      over30: acc.over30 + s.over30, under30: acc.under30 + s.under30,
-      base_total: acc.base_total + s.base_rate, bonus_total: acc.bonus_total + s.bonus,
+      sessions: acc.sessions + 1,
+      participants: acc.participants + s.participants,
+      over30: acc.over30 + s.over30,
+      under30: acc.under30 + s.under30,
+      base_total: acc.base_total + s.base_rate,
+      bonus_total: acc.bonus_total + s.bonus,
       amount_excl_vat: acc.amount_excl_vat + s.total_amount,
       over30_amount: acc.over30_amount + s.over30_amount,
       under30_amount: acc.under30_amount + s.under30_amount,
@@ -150,7 +170,8 @@ export async function GET(request: Request) {
 
     return {
       instructor: { id: instructor.id, name: instructor.name, initials: instructor.initials, email: instructor.email, level: instructor.level },
-      sessions: sessionDetails, totals,
+      sessions: sessionDetails,
+      totals,
     }
   }).filter(f => f.totals.sessions > 0)
 
