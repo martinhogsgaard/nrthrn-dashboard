@@ -110,14 +110,21 @@ async function main() {
 
   console.log(`\n  Gemmer ${toUpsert.length} sessions...`)
 
-  // Batch upsert
-  for (let i = 0; i < toUpsert.length; i += 100) {
-    const chunk = toUpsert.slice(i, i + 100)
+  // Update kun de tre kolonner — undgå not-null fejl på date etc.
+  let updated = 0
+  for (const row of toUpsert) {
     const { error } = await supabase
       .from('sessions_cache')
-      .upsert(chunk, { onConflict: 'id' })
-    if (error) console.log('⚠️  Fejl:', error.message)
+      .update({
+        participants_over_30: row.participants_over_30,
+        participants_under_30: row.participants_under_30,
+        bruce_spots: row.bruce_spots,
+      })
+      .eq('id', row.id)
+    if (error) console.log(`⚠️  Fejl session ${row.id}:`, error.message)
+    else updated++
   }
+  console.log(`  ${updated}/${toUpsert.length} opdateret`)
 
   // Vis resultat
   const sample = toUpsert.slice(0, 5)
