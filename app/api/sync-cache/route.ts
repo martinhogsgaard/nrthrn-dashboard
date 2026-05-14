@@ -76,6 +76,19 @@ export async function GET(request: Request) {
 
   // 2. Sync sessions
   try {
+    // Hent alle members med is_over_30 i ét kald — bruges til over/under 30 beregning
+    const { data: allMembers } = await supabase
+      .from('members')
+      .select('mariana_tek_user_id, is_over_30')
+      .not('is_over_30', 'is', null)
+
+    const over30Set = new Set(
+      allMembers?.filter(m => m.is_over_30 === true).map(m => m.mariana_tek_user_id) || []
+    )
+    const under30Set = new Set(
+      allMembers?.filter(m => m.is_over_30 === false).map(m => m.mariana_tek_user_id) || []
+    )
+
     let allSessions: any[] = []
     let page = 1
 
@@ -91,36 +104,86 @@ export async function GET(request: Request) {
       page++
     }
 
-    // Tæl Bruce spots for nylige sessions (sidste 7 dage)
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    // Tæl Bruce spots og over/under 30 for nylige sessions (sidste 7 dage)
+    const sevenDaysAgo = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     const recentSessions = allSessions.filter(s => s.attributes.start_date >= sevenDaysAgo)
+
     const bruceSpotsBySession: Record<string, number> = {}
+    const over30BySession: Record<string, number> = {}
+    const under30BySession: Record<string, number> = {}
 
     for (const session of recentSessions) {
       const reservationIds = session.relationships?.reservations?.data?.map((r: any) => r.id) || []
       if (reservationIds.length === 0) continue
+
       const reservations = await Promise.all(
         reservationIds.map((id: string) =>
           fetch(`https://nrthrnstrong.marianatek.com/api/reservations/${id}?include=tags,credit_transactions`, { headers: MT_HEADERS })
             .then(r => r.json()).catch(() => null)
         )
       )
-      bruceSpotsBySession[session.id] = reservations.filter(r => {
-  if (!r?.data) return false
-  return r.data.relationships?.broker?.data?.id === '53027'
-}).length
+
+      let over30 = 0
+      let under30 = 0
+      let bruceCount = 0
+      let unknownCount = 0
+
+      for (const r of reservations) {
+        if (!r?.data) continue
+
+        // Bruce spots
+        if (r.data.relationships?.broker?.data?.id === '53027') {
+          bruceCount++
+          continue
+        }
+
+        // Over/under 30
+        const userId = r.data.relationships?.user?.data?.id
+        if (!userId) continue
+
+        if (over30Set.has(userId)) {
+          over30++
+        } else if (under30Set.has(userId)) {
+          under30++
+        } else {
+          // Bruger ikke i members endnu — tæl som unknown
+          unknownCount++
+        }
+      }
+
+      // Fordel unknown proportionalt baseret på kendte tal
+      if (unknownCount > 0 && (over30 + under30) > 0) {
+        const ratio = over30 / (over30 + under30)
+        over30 += Math.round(unknownCount * ratio)
+        under30 += unknownCount - Math.round(unknownCount * ratio)
+      } else if (unknownCount > 0) {
+        // Ingen kendte — brug 50/50 som fallback
+        over30 += Math.round(unknownCount * 0.5)
+        under30 += unknownCount - Math.round(unknownCount * 0.5)
+      }
+
+      bruceSpotsBySession[session.id] = bruceCount
+      over30BySession[session.id] = over30
+      under30BySession[session.id] = under30
     }
 
     const sessionsToUpsert = allSessions.map((s: any) => {
       const startDT = new Date(s.attributes.start_datetime)
       const time = startDT.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Copenhagen' })
+      const participants = s.attributes.standard_reservation_user_count || 0
+      const isRecent = s.attributes.start_date >= sevenDaysAgo
+
       return {
-        id: s.id, date: s.attributes.start_date, time,
+        id: s.id,
+        date: s.attributes.start_date,
+        time,
         class_type: s.attributes.class_type_display,
         instructor_name: s.attributes.instructor_names?.[0] || '',
         instructor_profile_id: s.relationships?.employee_public_profiles?.data?.[0]?.id || null,
         capacity: s.attributes.capacity || 0,
-        participants: s.attributes.standard_reservation_user_count || 0,
+        participants,
+        participants_over_30: isRecent ? (over30BySession[s.id] ?? null) : null,
+        participants_under_30: isRecent ? (under30BySession[s.id] ?? null) : null,
         bruce_spots: bruceSpotsBySession[s.id] || 0,
         location_id: s.relationships?.location?.data?.id || '48718',
         updated_at: new Date().toISOString(),
