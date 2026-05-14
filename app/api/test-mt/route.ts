@@ -6,45 +6,28 @@ const MT_HEADERS = {
 }
 
 export async function GET() {
-  // Hent sessions fra 13. maj og deres reservationer med tags
+  // Hent første session 13. maj
   const res = await fetch(
-    `https://nrthrnstrong.marianatek.com/api/class_sessions?min_date=2026-05-13&max_date=2026-05-13&location=48718&per_page=50`,
+    `https://nrthrnstrong.marianatek.com/api/class_sessions?min_date=2026-05-13&max_date=2026-05-13&location=48718&per_page=1`,
     { headers: MT_HEADERS }
   )
   const data = await res.json()
+  const session = data.data?.[0]
+  const reservationIds = session?.relationships?.reservations?.data?.map((r: any) => r.id).slice(0, 5) || []
 
-  let allTags: Record<string, number> = {}
-  let bruceCount = 0
-  let firstTimerCount = 0
-  let unconvertedCount = 0
+  const reservations = await Promise.all(
+    reservationIds.map(async (id: string) => {
+      const r = await fetch(`https://nrthrnstrong.marianatek.com/api/reservations/${id}?include=tags`, { headers: MT_HEADERS })
+      const d = await r.json()
+      return {
+        id,
+        broker: d.data?.relationships?.broker?.data?.id,
+        is_bruce: d.data?.relationships?.broker?.data?.id === '53027',
+        guest_name: d.data?.attributes?.guest_name,
+        tags: d.included?.map((t: any) => t.attributes?.name) || []
+      }
+    })
+  )
 
-  for (const session of data.data || []) {
-    const reservationIds = session.relationships?.reservations?.data?.map((r: any) => r.id) || []
-    
-    for (const resId of reservationIds) {
-      const r = await fetch(
-        `https://nrthrnstrong.marianatek.com/api/reservations/${resId}?include=tags`,
-        { headers: MT_HEADERS }
-      )
-      const rd = await r.json()
-      
-      const brokerId = rd.data?.relationships?.broker?.data?.id
-      const tags = rd.included?.map((t: any) => t.attributes?.name) || []
-      
-      if (brokerId === '53027') bruceCount++
-      tags.forEach((t: string) => {
-        allTags[t] = (allTags[t] || 0) + 1
-        if (t.toLowerCase().includes('first')) firstTimerCount++
-        if (t.toLowerCase().includes('unconverted')) unconvertedCount++
-      })
-    }
-  }
-
-  return NextResponse.json({ 
-    sessions: data.data?.length,
-    bruce: bruceCount,
-    first_timer_tags: firstTimerCount,
-    unconverted_tags: unconvertedCount,
-    all_tags: allTags
-  })
+  return NextResponse.json({ session_id: session?.id, reservations })
 }
