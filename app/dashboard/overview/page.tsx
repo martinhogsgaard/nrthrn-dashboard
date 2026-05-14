@@ -8,6 +8,7 @@ interface OverviewData {
   mrr: number
   total_sales: number
   total_revenue: number
+  bruce: { visits: number, revenue: number, rate: number }
   members: number
   new_members: number
   avg_visits: number
@@ -24,7 +25,6 @@ interface OverviewData {
 
 interface FirstTimersData {
   first_timers: { total: number, converted: number, conversion_rate: number }
-  bruce: { total_visits: number, sessions_count: number }
 }
 
 export default function OverviewPage() {
@@ -52,25 +52,27 @@ export default function OverviewPage() {
     <div>
       <SecLabel>Overblik — København · {new Date().toLocaleDateString('da-DK', { month: 'long', year: 'numeric' })}</SecLabel>
 
+      {/* Række 1 — Økonomi */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 16 }}>
         {[
           { label: 'MRR', val: formatDKK(data.mrr), sub: data.members + ' aktive abonnementer' },
           { label: 'Total salg denne måned', val: formatDKK(data.total_sales || 0), sub: 'Klipkort, events og løssalg' },
-          { label: 'Samlet omsætning', val: formatDKK(data.total_revenue || data.mrr), sub: 'MRR + nye køb' },
-          { label: 'Split-moms %', val: data.split_pct + '%', sub: 'Over 30: ' + data.over30_members + ' · U30: ' + data.under30_members },
-        ].map((k, i) => (
-          <div key={i} style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: '18px 16px', borderTop: '3px solid #6b5ca5' }}>
+          { label: 'Bruce-indtægt', val: formatDKK(data.bruce?.revenue || 0), sub: (data.bruce?.visits || 0) + ' besøg · ' + (data.bruce?.rate || 95) + ' kr./besøg', color: '#1a1228' },
+          { label: 'Samlet omsætning', val: formatDKK(data.total_revenue || data.mrr), sub: 'MRR + nye køb + Bruce' },
+        ].map((k: any, i) => (
+          <div key={i} style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: '18px 16px', borderTop: '3px solid ' + (k.color || '#6b5ca5') }}>
             <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 10 }}>{k.label}</div>
-            <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 28, fontWeight: 700, color: '#1a1520', lineHeight: 1 }}>{k.val}</div>
+            <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 28, fontWeight: 700, color: k.color || '#1a1520', lineHeight: 1 }}>{k.val}</div>
             <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 6 }}>{k.sub}</div>
           </div>
         ))}
       </div>
 
+      {/* Række 2 — Nøgletal */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 16 }}>
         {[
+          { label: 'Split-moms %', val: data.split_pct + '%', sub: 'Over 30: ' + data.over30_members + ' · U30: ' + data.under30_members },
           { label: 'First Timers denne måned', val: firstTimers?.first_timers?.total || 0, sub: 'Første besøg i centret', color: '#2e8b6a' },
-          { label: 'Bruce-besøg denne måned', val: firstTimers?.bruce?.total_visits || 0, sub: (firstTimers?.bruce?.sessions_count || 0) + ' hold med Bruce-kunder', color: '#1a1228' },
           { label: 'Konverteringsrate', val: (firstTimers?.first_timers?.conversion_rate || 0) + '%', sub: (firstTimers?.first_timers?.converted || 0) + ' first timers til medlem', color: '#6b5ca5' },
           { label: 'Avg. besøg/medlem', val: data.avg_visits || '–', sub: 'Afholdte hold denne måned' },
         ].map((k: any, i) => (
@@ -82,6 +84,7 @@ export default function OverviewPage() {
         ))}
       </div>
 
+      {/* Række 3 — Afholdt/Planlagt */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
         <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
@@ -123,6 +126,7 @@ export default function OverviewPage() {
         </div>
       </div>
 
+      {/* Række 4 — Løn + MRR graf */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
         <div style={{ background: '#f2f0f9', border: '1px solid #d0c8e8', borderRadius: 10, padding: 24 }}>
           <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 600, marginBottom: 8 }}>Estimeret samlet lønomk. denne måned</div>
@@ -146,6 +150,7 @@ export default function OverviewPage() {
         </div>
       </div>
 
+      {/* Række 5 — Top hold + Lav belægning */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
           <div style={{ fontSize: 9, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 14 }}>Top hold denne måned</div>
