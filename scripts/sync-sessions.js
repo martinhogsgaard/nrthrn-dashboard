@@ -49,7 +49,7 @@ async function main() {
     const s = allSessions[i]
     process.stdout.write(`\r  Beregner session ${i + 1}/${allSessions.length}...`)
 
-    // Hent alle reservationer via class_session endpoint — mere præcist end session relations
+    // Hent reservationer via class_session endpoint
     let sessionReservations = []
     let resPage = 1
     while (true) {
@@ -70,7 +70,6 @@ async function main() {
         bruceCount++
         continue
       }
-
       // Kun checked in
       if (r.attributes?.status !== 'check in') continue
 
@@ -92,6 +91,9 @@ async function main() {
       under30 += unknown - Math.round(unknown * 0.5)
     }
 
+    // Debug print per session
+    console.log(`\n  Session ${s.id}: ${s.attributes.class_type_display} — reservationer=${sessionReservations.length}, bruce=${bruceCount}, over30=${over30}, under30=${under30}`)
+
     toUpsert.push({
       id: s.id,
       participants_over_30: over30,
@@ -102,33 +104,21 @@ async function main() {
 
   console.log(`\n  Gemmer ${toUpsert.length} sessions...`)
 
-  for (let i = 0; i < toUpsert.length; i += 100) {
-    const chunk = toUpsert.slice(i, i + 100)
+  let updated = 0
+  for (const row of toUpsert) {
     const { error } = await supabase
       .from('sessions_cache')
-      .update(chunk.length === 1 ? chunk[0] : chunk[0])
-      .eq('id', chunk[0].id)
-    
-    // Update én ad gangen for sikkerhed
-    for (const row of chunk) {
-      const { error } = await supabase
-        .from('sessions_cache')
-        .update({
-          participants_over_30: row.participants_over_30,
-          participants_under_30: row.participants_under_30,
-          bruce_spots: row.bruce_spots,
-        })
-        .eq('id', row.id)
-      if (error) console.log(`⚠️  Fejl session ${row.id}:`, error.message)
-    }
+      .update({
+        participants_over_30: row.participants_over_30,
+        participants_under_30: row.participants_under_30,
+        bruce_spots: row.bruce_spots,
+      })
+      .eq('id', row.id)
+    if (error) console.log(`⚠️  Fejl session ${row.id}:`, error.message)
+    else updated++
   }
 
-  console.log(`  ✓ ${toUpsert.length} opdateret`)
-
-  const sample = toUpsert.slice(0, 5)
-  console.log('\n📊 Eksempel:')
-  sample.forEach(s => console.log(`   Session ${s.id}: over30=${s.participants_over_30}, under30=${s.participants_under_30}, bruce=${s.bruce_spots}`))
-
+  console.log(`  ✓ ${updated}/${toUpsert.length} opdateret`)
   console.log('\n✅ Færdig!')
 }
 
