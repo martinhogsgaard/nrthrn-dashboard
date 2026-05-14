@@ -16,7 +16,6 @@ async function main() {
 
   console.log(`🔄 Session sync: ${start} → ${end}`)
 
-  // Hent alle members med is_over_30 i ét kald
   const { data: allMembers } = await supabase
     .from('members')
     .select('mariana_tek_user_id, is_over_30')
@@ -26,7 +25,6 @@ async function main() {
   const under30Set = new Set(allMembers?.filter(m => m.is_over_30 === false).map(m => m.mariana_tek_user_id) || [])
   console.log(`👥 ${over30Set.size} over 30, ${under30Set.size} under 30 i members`)
 
-  // Hent alle sessions for perioden
   let page = 1, totalPages = 1
   const allSessions = []
 
@@ -44,12 +42,12 @@ async function main() {
   console.log(`\n📅 ${allSessions.length} sessions fundet`)
 
   const toUpsert = []
+  const cancelStatuses = ['standard cancel', 'penalty cancel', 'admin cancel', 'late cancel']
 
   for (let i = 0; i < allSessions.length; i++) {
     const s = allSessions[i]
     process.stdout.write(`\r  Beregner session ${i + 1}/${allSessions.length}...`)
 
-    // Hent reservationer via class_session endpoint
     let sessionReservations = []
     let resPage = 1
     while (true) {
@@ -65,13 +63,17 @@ async function main() {
     let over30 = 0, under30 = 0, unknown = 0, bruceCount = 0
 
     for (const r of sessionReservations) {
-      // Bruce spots — broker ID 53027
+      const status = r.attributes?.status
+      if (cancelStatuses.includes(status)) continue
+
+      // Bruce spots — broker ID 53027, ikke cancelled
       if (r.relationships?.broker?.data?.id === '53027') {
         bruceCount++
         continue
       }
-      // Kun checked in
-      if (r.attributes?.status !== 'check in') continue
+
+      // Kun checked in for over/under 30
+      if (status !== 'check in') continue
 
       const userId = r.relationships?.user?.data?.id
       if (!userId) continue
@@ -90,9 +92,6 @@ async function main() {
       over30 += Math.round(unknown * 0.5)
       under30 += unknown - Math.round(unknown * 0.5)
     }
-
-    // Debug print per session
-    console.log(`\n  Session ${s.id}: ${s.attributes.class_type_display} — reservationer=${sessionReservations.length}, bruce=${bruceCount}, over30=${over30}, under30=${under30}`)
 
     toUpsert.push({
       id: s.id,
