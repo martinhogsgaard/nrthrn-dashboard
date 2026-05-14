@@ -195,7 +195,7 @@ export async function GET(request: Request) {
     let synced = 0
     for (const resId of reservationIds) {
       try {
-        fetch(`https://nrthrnstrong.marianatek.com/api/reservations/${id}`, { headers: MT_HEADERS })
+        const resRes = await fetch(`https://nrthrnstrong.marianatek.com/api/reservations/${resId}`, { headers: MT_HEADERS })
         const resData = await resRes.json()
         const userId = resData.data?.relationships?.user?.data?.id
         if (!userId) continue
