@@ -43,46 +43,38 @@ async function main() {
 
   console.log(`\n📅 ${allSessions.length} sessions fundet`)
 
-  // Beregn over/under 30 per session
   const toUpsert = []
 
   for (let i = 0; i < allSessions.length; i++) {
     const s = allSessions[i]
     process.stdout.write(`\r  Beregner session ${i + 1}/${allSessions.length}...`)
 
-    const reservationIds = s.relationships?.reservations?.data?.map(r => r.id) || []
-    if (reservationIds.length === 0) {
-      toUpsert.push({
-        id: s.id,
-        participants_over_30: 0,
-        participants_under_30: 0,
-        bruce_spots: 0,
-      })
-      continue
-    }
-
-    // Hent alle reservationer for sessionen parallelt
-    const reservations = await Promise.all(
-      reservationIds.map(id =>
-        fetchJSON(`${MT_BASE}/reservations/${id}`).catch(() => null)
+    // Hent alle reservationer via class_session endpoint — mere præcist end session relations
+    let sessionReservations = []
+    let resPage = 1
+    while (true) {
+      const data = await fetchJSON(
+        `${MT_BASE}/reservations?class_session=${s.id}&per_page=100&page=${resPage}`
       )
-    )
+      if (!data.data?.length) break
+      sessionReservations = [...sessionReservations, ...data.data]
+      if (data.meta?.pagination?.pages <= resPage) break
+      resPage++
+    }
 
     let over30 = 0, under30 = 0, unknown = 0, bruceCount = 0
 
-    for (const r of reservations) {
-      if (!r?.data) continue
-
-      // Bruce spots
-      if (r.data.relationships?.broker?.data?.id === '53027') {
+    for (const r of sessionReservations) {
+      // Bruce spots — broker ID 53027
+      if (r.relationships?.broker?.data?.id === '53027') {
         bruceCount++
         continue
       }
 
-      // Spring over hvis ikke checked in
-      if (r.data.attributes?.status !== 'check in') continue
+      // Kun checked in
+      if (r.attributes?.status !== 'check in') continue
 
-      const userId = r.data.relationships?.user?.data?.id
+      const userId = r.relationships?.user?.data?.id
       if (!userId) continue
 
       if (over30Set.has(userId)) over30++
@@ -110,23 +102,29 @@ async function main() {
 
   console.log(`\n  Gemmer ${toUpsert.length} sessions...`)
 
-  // Update kun de tre kolonner — undgå not-null fejl på date etc.
-  let updated = 0
-  for (const row of toUpsert) {
+  for (let i = 0; i < toUpsert.length; i += 100) {
+    const chunk = toUpsert.slice(i, i + 100)
     const { error } = await supabase
       .from('sessions_cache')
-      .update({
-        participants_over_30: row.participants_over_30,
-        participants_under_30: row.participants_under_30,
-        bruce_spots: row.bruce_spots,
-      })
-      .eq('id', row.id)
-    if (error) console.log(`⚠️  Fejl session ${row.id}:`, error.message)
-    else updated++
+      .update(chunk.length === 1 ? chunk[0] : chunk[0])
+      .eq('id', chunk[0].id)
+    
+    // Update én ad gangen for sikkerhed
+    for (const row of chunk) {
+      const { error } = await supabase
+        .from('sessions_cache')
+        .update({
+          participants_over_30: row.participants_over_30,
+          participants_under_30: row.participants_under_30,
+          bruce_spots: row.bruce_spots,
+        })
+        .eq('id', row.id)
+      if (error) console.log(`⚠️  Fejl session ${row.id}:`, error.message)
+    }
   }
-  console.log(`  ${updated}/${toUpsert.length} opdateret`)
 
-  // Vis resultat
+  console.log(`  ✓ ${toUpsert.length} opdateret`)
+
   const sample = toUpsert.slice(0, 5)
   console.log('\n📊 Eksempel:')
   sample.forEach(s => console.log(`   Session ${s.id}: over30=${s.participants_over_30}, under30=${s.participants_under_30}, bruce=${s.bruce_spots}`))
