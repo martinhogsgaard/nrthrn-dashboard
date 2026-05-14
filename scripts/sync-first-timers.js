@@ -5,7 +5,6 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.
 const MT_BASE = 'https://nrthrnstrong.marianatek.com/api'
 const AUTH = { 'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`, 'Content-Type': 'application/json' }
 
-// Lokationer der synkes — hver for sig
 const LOCATIONS = [
   { id: '48718', name: 'København' },
   { id: '48717', name: 'New York' },
@@ -14,13 +13,22 @@ const LOCATIONS = [
 async function syncLocation(locationId, locationName, start, end) {
   console.log(`\n📍 Synkroniserer ${locationName} (${locationId})...`)
 
+  // Hent alle eksisterende user_ids for denne lokation i ét kald
+  const { data: existing } = await supabase
+    .from('first_timers')
+    .select('user_id')
+    .eq('location_id', locationId)
+
+  const existingIds = new Set((existing || []).map(r => r.user_id))
+  console.log(`  ${existingIds.size} kendte i forvejen`)
+
   let page = 1
   let totalPages = 1
-  let newCount = 0
-  let skipCount = 0
+  const toInsert = []
 
+  // Hent alle sider fra MT
   while (page <= totalPages) {
-    process.stdout.write(`\r  Side ${page}/${totalPages} — ${newCount} nye, ${skipCount} kendte...`)
+    process.stdout.write(`\r  Henter side ${page}/${totalPages}...`)
 
     const res = await fetch(
       `${MT_BASE}/reservations?tag=first-timer&location=${locationId}&min_datetime=${start}T00:00:00Z&max_datetime=${end}T23:59:59Z&per_page=100&page=${page}&include=class_session`,
@@ -38,25 +46,14 @@ async function syncLocation(locationId, locationName, start, end) {
       const userId = r.relationships?.user?.data?.id
       const sessionId = r.relationships?.class_session?.data?.id
 
-      // Spring Bruce og ukendte brugere over
       if (!userId || userId === '53027') continue
+      if (existingIds.has(userId)) continue
 
-      // Find session data fra included
       const sessionData = data.included?.find((i) => i.type === 'class_sessions' && i.id === sessionId)
       const visitDate = sessionData?.attributes?.start_date || r.attributes.creation_date?.split('T')[0]
       const classType = sessionData?.attributes?.class_type_display || null
 
-      // Duplikat-tjek på user_id + location_id (samme person kan være first timer på begge lokationer)
-      const { data: existing } = await supabase
-        .from('first_timers')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('location_id', locationId)
-        .maybeSingle()
-
-      if (existing) { skipCount++; continue }
-
-      const { error } = await supabase.from('first_timers').insert({
+      toInsert.push({
         source: 'mariana_tek',
         user_id: userId,
         first_visit_date: visitDate,
@@ -65,24 +62,35 @@ async function syncLocation(locationId, locationName, start, end) {
         location_id: locationId,
       })
 
-      if (!error) newCount++
-      else console.log('\n  ⚠️  Fejl ved insert:', error.message)
+      // Tilføj til set så vi ikke dublerer inden for samme sync
+      existingIds.add(userId)
     }
 
     page++
   }
 
-  console.log(`\n  ✓ ${locationName}: ${newCount} nye first timers gemt, ${skipCount} allerede kendte.`)
-  return { newCount, skipCount }
+  console.log(`\n  ${toInsert.length} nye at indsætte...`)
+
+  // Batch insert i chunks af 500
+  let inserted = 0
+  for (let i = 0; i < toInsert.length; i += 500) {
+    const chunk = toInsert.slice(i, i + 500)
+    const { error } = await supabase.from('first_timers').insert(chunk)
+    if (error) console.log('  ⚠️  Insert fejl:', error.message)
+    else inserted += chunk.length
+    process.stdout.write(`\r  Indsat ${inserted}/${toInsert.length}...`)
+  }
+
+  console.log(`\n  ✓ ${locationName}: ${inserted} nye first timers gemt.`)
+  return inserted
 }
 
 async function main() {
-  const start = process.argv[2] || '2024-01-01'
+  const start = process.argv[2] || '2026-05-01'
   const end = process.argv[3] || new Date().toISOString().split('T')[0]
-  const locationArg = process.argv[4] // valgfrit: '48718' eller '48717'
+  const locationArg = process.argv[4]
 
   console.log(`🔄 First timers sync: ${start} → ${end}`)
-  if (locationArg) console.log(`   Kun lokation: ${locationArg}`)
 
   const locationsToSync = locationArg
     ? LOCATIONS.filter(l => l.id === locationArg)
@@ -94,15 +102,11 @@ async function main() {
   }
 
   let totalNew = 0
-  let totalSkip = 0
-
   for (const loc of locationsToSync) {
-    const { newCount, skipCount } = await syncLocation(loc.id, loc.name, start, end)
-    totalNew += newCount
-    totalSkip += skipCount
+    totalNew += await syncLocation(loc.id, loc.name, start, end)
   }
 
-  console.log(`\n✅ Færdig! ${totalNew} nye first timers gemt, ${totalSkip} allerede kendte.`)
+  console.log(`\n✅ Færdig! ${totalNew} nye first timers gemt.`)
 
   const { count: cphCount } = await supabase
     .from('first_timers')
