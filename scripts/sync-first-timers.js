@@ -18,7 +18,6 @@ async function fetchJSON(url) {
 async function syncLocation(locationId, locationName, start, end) {
   console.log(`\n📍 ${locationName} (${locationId})`)
 
-  // Hent eksisterende user_ids for denne lokation
   const { data: existing } = await supabase
     .from('first_timers')
     .select('user_id')
@@ -27,8 +26,7 @@ async function syncLocation(locationId, locationName, start, end) {
   console.log(`  ${existingIds.size} kendte i forvejen`)
 
   // Trin 1: Hent alle sessions for lokation + periode
-  let page = 1
-  let totalPages = 1
+  let page = 1, totalPages = 1
   const allSessions = []
 
   while (page <= totalPages) {
@@ -50,7 +48,7 @@ async function syncLocation(locationId, locationName, start, end) {
 
   console.log(`\n  ${allSessions.length} sessions i alt`)
 
-  // Trin 2: Hent reservationer per session, find first timers via completed_class_count = 1
+  // Trin 2: Hent reservationer per session, filtrer på completed_class_count = 1 og status = 'check in'
   const toInsert = []
 
   for (let i = 0; i < allSessions.length; i++) {
@@ -58,7 +56,7 @@ async function syncLocation(locationId, locationName, start, end) {
     process.stdout.write(`\r  Gennemgår session ${i + 1}/${allSessions.length} — ${toInsert.length} first timers fundet...`)
 
     const data = await fetchJSON(
-      `${MT_BASE}/reservations?class_session=${session.id}reservations?class_session=${session.id}&status=checked_instatus=check+in&per_page=100&include=user`
+      `${MT_BASE}/reservations?class_session=${session.id}&per_page=100&include=user`
     )
     if (!data.data) continue
 
@@ -67,11 +65,14 @@ async function syncLocation(locationId, locationName, start, end) {
       if (!userId || userId === '53027') continue
       if (existingIds.has(userId)) continue
 
+      // Kun gennemførte besøg
+      if (r.attributes.status !== 'check in') continue
+
       // Find user fra included
       const user = data.included?.find(i => i.type === 'users' && i.id === userId)
       const completedCount = user?.attributes?.completed_class_count
 
-      // First timer = præcis 1 completed class (dette besøg)
+      // First timer = præcis 1 completed class
       if (completedCount !== 1) continue
 
       toInsert.push({
