@@ -21,26 +21,13 @@ export async function GET(request: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Hent sessions fra cache
+  // Hent sessions fra cache inkl. de nye over/under 30 kolonner
   const { data: sessions } = await supabase
     .from('sessions_cache')
     .select('*')
     .eq('location_id', location)
     .gte('date', start)
     .lte('date', end)
-
-  // Hent members med fødselsdato fra Supabase
-  const { data: members } = await supabase
-    .from('members')
-    .select('mariana_tek_user_id, is_over_30, birth_date')
-    .not('birth_date', 'is', null)
-
-  const over30UserIds = new Set(
-    members?.filter(m => m.is_over_30 === true).map(m => m.mariana_tek_user_id) || []
-  )
-  const under30UserIds = new Set(
-    members?.filter(m => m.is_over_30 === false).map(m => m.mariana_tek_user_id) || []
-  )
 
   // Beregn løn pr. instruktør
   const payroll = instructors.map(instructor => {
@@ -61,13 +48,24 @@ export async function GET(request: Request) {
       s.instructor_name === instructor.name
     )
 
-    const mappedSessions = instructorSessions.map((s: any) => ({
-      participants: s.participants || 0,
-      participants_over_30: Math.round((s.participants || 0) * 0.5),
-      participants_under_30: Math.round((s.participants || 0) * 0.5),
-      date: s.date,
-      class_name: s.class_type,
-    }))
+    const mappedSessions = instructorSessions.map((s: any) => {
+      const participants = s.participants || 0
+      const over30 = s.participants_over_30 ?? null
+      const under30 = s.participants_under_30 ?? null
+
+      // Brug præcise tal hvis de findes, ellers estimer 50/50
+      const finalOver30 = over30 !== null ? over30 : Math.round(participants * 0.5)
+      const finalUnder30 = under30 !== null ? under30 : Math.round(participants * 0.5)
+
+      return {
+        participants,
+        participants_over_30: finalOver30,
+        participants_under_30: finalUnder30,
+        is_estimated: over30 === null,
+        date: s.date,
+        class_name: s.class_type,
+      }
+    })
 
     const result = calcPayroll(mappedSessions, activeRate, instructor.employment_type === 'freelance')
 
