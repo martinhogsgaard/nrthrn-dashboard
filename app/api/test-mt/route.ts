@@ -6,10 +6,14 @@ const MT_HEADERS = {
 }
 
 export async function GET() {
+  const start = '2026-05-01'
   const res = await fetch(
-    `https://nrthrnstrong.marianatek.com/api/reservations/5344`,
+    `https://nrthrnstrong.marianatek.com/api/reservations?tag=first-timer&min_datetime=${start}&per_page=1`,
     { headers: MT_HEADERS }
   )
   const data = await res.json()
-  return NextResponse.json(data.data)
+  return NextResponse.json({ 
+    total: data.meta?.pagination?.count,
+    pages: data.meta?.pagination?.pages
+  })
 }
