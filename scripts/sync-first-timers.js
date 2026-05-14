@@ -18,7 +18,7 @@ async function fetchJSON(url) {
 async function syncLocation(locationId, locationName, start, end) {
   console.log(`\n📍 ${locationName} (${locationId})`)
 
-  // Hent alle eksisterende keys for denne lokation
+  // Hent eksisterende user_ids for denne lokation
   const { data: existing } = await supabase
     .from('first_timers')
     .select('user_id')
@@ -29,39 +29,36 @@ async function syncLocation(locationId, locationName, start, end) {
   // Trin 1: Hent alle sessions for lokation + periode
   let page = 1
   let totalPages = 1
-  const sessionsWithFirstTimers = []
+  const allSessions = []
 
   while (page <= totalPages) {
     process.stdout.write(`\r  Henter sessions side ${page}/${totalPages}...`)
     const data = await fetchJSON(
       `${MT_BASE}/class_sessions?location=${locationId}&min_date=${start}&max_date=${end}&per_page=100&page=${page}`
     )
-    if (!data.data) { console.log('\n  ⚠️  Fejl sessions:', JSON.stringify(data).slice(0, 200)); break }
+    if (!data.data) { console.log('\n  ⚠️  Fejl:', JSON.stringify(data).slice(0, 200)); break }
     totalPages = data.meta?.pagination?.pages || 1
-
     for (const s of data.data) {
-      if ((s.attributes.first_time_user_count || 0) > 0) {
-        sessionsWithFirstTimers.push({
-          id: s.id,
-          date: s.attributes.start_date,
-          classType: s.attributes.class_type_display,
-        })
-      }
+      allSessions.push({
+        id: s.id,
+        date: s.attributes.start_date,
+        classType: s.attributes.class_type_display,
+      })
     }
     page++
   }
 
-  console.log(`\n  ${sessionsWithFirstTimers.length} sessions med first timers`)
+  console.log(`\n  ${allSessions.length} sessions i alt`)
 
-  // Trin 2: Hent reservationer for hver session med first timers
+  // Trin 2: Hent reservationer per session, find first timers via completed_class_count = 1
   const toInsert = []
 
-  for (let i = 0; i < sessionsWithFirstTimers.length; i++) {
-    const session = sessionsWithFirstTimers[i]
-    process.stdout.write(`\r  Henter reservationer ${i + 1}/${sessionsWithFirstTimers.length}...`)
+  for (let i = 0; i < allSessions.length; i++) {
+    const session = allSessions[i]
+    process.stdout.write(`\r  Gennemgår session ${i + 1}/${allSessions.length} — ${toInsert.length} first timers fundet...`)
 
     const data = await fetchJSON(
-      `${MT_BASE}/reservations?tag=first-timer&class_session=${session.id}&per_page=100`
+      `${MT_BASE}/reservations?class_session=${session.id}&status=checked_in&per_page=100&include=user`
     )
     if (!data.data) continue
 
@@ -69,6 +66,13 @@ async function syncLocation(locationId, locationName, start, end) {
       const userId = r.relationships?.user?.data?.id
       if (!userId || userId === '53027') continue
       if (existingIds.has(userId)) continue
+
+      // Find user fra included
+      const user = data.included?.find(i => i.type === 'users' && i.id === userId)
+      const completedCount = user?.attributes?.completed_class_count
+
+      // First timer = præcis 1 completed class (dette besøg)
+      if (completedCount !== 1) continue
 
       toInsert.push({
         source: 'mariana_tek',
@@ -82,7 +86,7 @@ async function syncLocation(locationId, locationName, start, end) {
     }
   }
 
-  console.log(`\n  ${toInsert.length} nye at indsætte`)
+  console.log(`\n  ${toInsert.length} first timers fundet`)
 
   // Trin 3: Batch insert
   let inserted = 0
