@@ -15,7 +15,6 @@ export async function GET(request: Request) {
   const today = now.toISOString().split('T')[0]
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   // Hent sessions
   const { data: allSessions } = await supabase
@@ -42,11 +41,9 @@ export async function GET(request: Request) {
       ).map(s => {
         const participants = s.participants || 0
         const over30 = s.participants_over_30 !== null && s.participants_over_30 !== undefined
-          ? s.participants_over_30
-          : Math.round(participants * 0.5)
+          ? s.participants_over_30 : Math.round(participants * 0.5)
         const under30 = s.participants_under_30 !== null && s.participants_under_30 !== undefined
-          ? s.participants_under_30
-          : participants - over30
+          ? s.participants_under_30 : participants - over30
         return { participants, participants_over_30: over30, participants_under_30: under30, date: s.date, class_name: s.class_type }
       })
 
@@ -66,15 +63,11 @@ export async function GET(request: Request) {
     .gt('next_charge_date', new Date().toISOString())
 
   const totalMRR = memberships?.reduce((s, m) => s + (m.renewal_rate || 0), 0) || 0
-
-  // Split% beregnet fra membership_cache — ikke fra members fødselsdatoer
   const mrrOver30 = memberships?.filter(m => m.membership_name?.includes('30+')).reduce((s, m) => s + (m.renewal_rate || 0), 0) || 0
   const mrrUnder30 = memberships?.filter(m => m.membership_name?.includes('under 30')).reduce((s, m) => s + (m.renewal_rate || 0), 0) || 0
   const mrrOther = memberships?.filter(m => !m.membership_name?.includes('30+') && !m.membership_name?.includes('under 30')).reduce((s, m) => s + (m.renewal_rate || 0), 0) || 0
-  const over30MRR = mrrOver30 + mrrOther
-  const splitPct = totalMRR > 0 ? Math.round(over30MRR / totalMRR * 100) : 0
 
-  // Over/under 30 antal members til visning
+  // Over/under 30 antal til visning
   const { data: members } = await supabase
     .from('members').select('is_over_30').not('birth_date', 'is', null)
   const over30 = members?.filter(m => m.is_over_30 === true).length || 0
@@ -88,16 +81,12 @@ export async function GET(request: Request) {
   // Avg besøg pr. medlem
   const totalVisits = historicSessions.reduce((s, x) => s + (x.participants || 0), 0)
   const avgVisits = (memberships?.length || 0) > 0
-    ? Math.round(totalVisits / (memberships?.length || 1) * 10) / 10
-    : 0
+    ? Math.round(totalVisits / (memberships?.length || 1) * 10) / 10 : 0
 
   // MRR historik
   const mrrHistory = Array.from({ length: 6 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
-    return {
-      month: d.toLocaleDateString('da-DK', { month: 'short' }),
-      mrr: i === 5 ? Math.round(totalMRR) : 0,
-    }
+    return { month: d.toLocaleDateString('da-DK', { month: 'short' }), mrr: i === 5 ? Math.round(totalMRR) : 0 }
   })
 
   // Belægning
@@ -116,12 +105,12 @@ export async function GET(request: Request) {
     .filter(s => s.capacity > 0 && s.capacity < 50 && s.participants > 0 && s.participants / s.capacity < 0.4)
     .sort((a, b) => (a.participants / a.capacity) - (b.participants / b.capacity)).slice(0, 3)
 
-  // Total salg fra orders — samme logik som splits endpoint
+  // Orders — med max_datetime=today så vi matcher splits-endpointet
   let allOrders: any[] = []
   let ordersPage = 1
   while (ordersPage <= 10) {
     const ordersRes = await fetch(
-      `https://nrthrnstrong.marianatek.com/api/orders?min_datetime=${monthStart}&per_page=100&page=${ordersPage}`,
+      `https://nrthrnstrong.marianatek.com/api/orders?min_datetime=${monthStart}&max_datetime=${today}&per_page=100&page=${ordersPage}`,
       { headers: { 'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`, 'Content-Type': 'application/json' } }
     )
     const ordersData = await ordersRes.json()
@@ -138,11 +127,19 @@ export async function GET(request: Request) {
   )
   const totalSales = Math.round(cphOrders.reduce((s, o) => s + o.attributes.total, 0))
 
+  // Split% beregnet på MRR + orders — samme logik som splits endpoint
+  const ordersOver30 = cphOrders
+    .filter(o => !o.attributes.summary?.[0]?.includes('under 30'))
+    .reduce((s, o) => s + o.attributes.total, 0)
+  const totalOver30 = mrrOver30 + mrrOther + ordersOver30
+  const totalRevenue = totalMRR + totalSales
+  const splitPct = totalRevenue > 0 ? Math.round(totalOver30 / totalRevenue * 100) : 0
+
   return NextResponse.json({
     period: { start: monthStart, today, end: monthEnd },
     mrr: totalMRR,
     total_sales: totalSales,
-    total_revenue: Math.round(totalMRR + totalSales),
+    total_revenue: Math.round(totalRevenue),
     members: memberships?.length || 0,
     new_members: newMembersData?.length || 0,
     avg_visits: avgVisits,
