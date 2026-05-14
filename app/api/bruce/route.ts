@@ -10,16 +10,16 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const location = searchParams.get('location') || '48718'
   const now = new Date()
+  const today = now.toISOString().split('T')[0]
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
 
-  // Hent Bruce sessions denne måned
+  // Hent Bruce sessions denne måned — kun afholdte (dato <= i dag)
   const { data: sessions } = await supabase
     .from('sessions_cache')
     .select('*')
     .eq('location_id', location)
     .gte('date', monthStart)
-    .lte('date', monthEnd)
+    .lte('date', today)
     .gt('bruce_spots', 0)
     .order('date', { ascending: false })
 
@@ -36,14 +36,15 @@ export async function GET(request: Request) {
   const isEstimated = rateData?.is_estimated ?? true
   const estimatedRevenue = Math.round(totalBruceVisits * rate)
 
-  // Hent historik — sidste 6 måneder
+  // Historik — sidste 6 måneder, kun afholdte sessions
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().split('T')[0]
-  
+
   const { data: historicSessions } = await supabase
     .from('sessions_cache')
     .select('date, bruce_spots')
     .eq('location_id', location)
     .gte('date', sixMonthsAgo)
+    .lte('date', today)
     .gt('bruce_spots', 0)
 
   const { data: historicRates } = await supabase
@@ -53,7 +54,7 @@ export async function GET(request: Request) {
 
   // Gruppér historik pr. måned
   const monthlyData: Record<string, { visits: number, rate: number, is_estimated: boolean, revenue: number }> = {}
-  
+
   historicSessions?.forEach(s => {
     const month = s.date.slice(0, 7) + '-01'
     if (!monthlyData[month]) monthlyData[month] = { visits: 0, rate: 95, is_estimated: true, revenue: 0 }
