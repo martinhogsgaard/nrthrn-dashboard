@@ -20,7 +20,7 @@ async function main() {
     process.stdout.write('\rSide ' + page + '/' + totalPages + ' — ' + newCount + ' nye, ' + skipCount + ' kendte...')
     
     const res = await fetch(
-      MT_BASE + '/reservations?tag=first-timer&min_datetime=' + start + '&max_datetime=' + end + '&per_page=100&page=' + page,
+      MT_BASE + '/reservations?tag=first-timer&min_datetime=' + start + 'T00:00:00Z&max_datetime=' + end + 'T23:59:59Z&per_page=100&page=' + page + '&include=class_session',
       { headers: AUTH }
     )
     const data = await res.json()
@@ -33,22 +33,28 @@ async function main() {
       const sessionId = r.relationships?.class_session?.data?.id
       if (!userId || userId === '53027') continue
 
+      // Find session dato fra included
+      const sessionData = data.included?.find((i) => i.type === 'class_sessions' && i.id === sessionId)
+      const visitDate = sessionData?.attributes?.start_date || r.attributes.creation_date?.split('T')[0]
+      const classType = sessionData?.attributes?.class_type_display || null
+
+      // Tjek duplikat
       const { data: existing } = await supabase
         .from('first_timers').select('id').eq('user_id', userId).maybeSingle()
 
       if (existing) { skipCount++; continue }
-
-      const visitDate = r.attributes.creation_date?.split('T')[0] || start
 
       const { error } = await supabase.from('first_timers').insert({
         source: 'mariana_tek',
         user_id: userId,
         first_visit_date: visitDate,
         session_id: sessionId,
+        class_type: classType,
         location_id: '48718',
       })
       
       if (!error) newCount++
+      else console.log('\nFejl ved insert:', error.message)
     }
 
     page++
