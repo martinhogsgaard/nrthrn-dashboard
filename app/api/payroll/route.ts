@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { calcPayroll, type SalaryRate } from '@/lib/payroll'
+import { calcPayroll } from '@/lib/payroll'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,24 +13,17 @@ export async function GET(request: Request) {
   const end = searchParams.get('end') || new Date().toISOString().split('T')[0]
   const location = searchParams.get('location') || '48718'
 
-  // Hent instruktører fra Supabase
-  const { data: instructors, error } = await supabase
-    .from('instructors')
-    .select('*, salary_rates(*)')
-    .eq('is_active', true)
+  const [
+    { data: instructors, error },
+    { data: sessions },
+  ] = await Promise.all([
+    supabase.from('instructors').select('*, salary_rates(*)').eq('is_active', true),
+    supabase.from('sessions_cache').select('*').eq('location_id', location).gte('date', start).lte('date', end).eq('is_cancelled', false),
+  ])
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Hent sessions fra cache inkl. de nye over/under 30 kolonner
-  const { data: sessions } = await supabase
-    .from('sessions_cache')
-    .select('*')
-    .eq('location_id', location)
-    .gte('date', start)
-    .lte('date', end)
-
-  // Beregn løn pr. instruktør
-  const payroll = instructors.map(instructor => {
+  const payroll = (instructors || []).map(instructor => {
     const activeRate = instructor.salary_rates
       ?.filter((r: any) => !r.valid_to)
       ?.sort((a: any, b: any) => new Date(b.valid_from).getTime() - new Date(a.valid_from).getTime())[0]
@@ -42,7 +35,6 @@ export async function GET(request: Request) {
         bonus_tier_4: instructor.level === 'senior' ? 50 : 35,
       }
 
-    // Find sessions for denne instruktør
     const instructorSessions = (sessions || []).filter((s: any) =>
       s.instructor_profile_id === instructor.mariana_tek_profile_id ||
       s.instructor_name === instructor.name
@@ -52,15 +44,10 @@ export async function GET(request: Request) {
       const participants = s.participants || 0
       const over30 = s.participants_over_30 ?? null
       const under30 = s.participants_under_30 ?? null
-
-      // Brug præcise tal hvis de findes, ellers estimer 50/50
-      const finalOver30 = over30 !== null ? over30 : Math.round(participants * 0.5)
-      const finalUnder30 = under30 !== null ? under30 : Math.round(participants * 0.5)
-
       return {
         participants,
-        participants_over_30: finalOver30,
-        participants_under_30: finalUnder30,
+        participants_over_30: over30 !== null ? over30 : Math.round(participants * 0.5),
+        participants_under_30: under30 !== null ? under30 : Math.round(participants * 0.5),
         is_estimated: over30 === null,
         date: s.date,
         class_name: s.class_type,
