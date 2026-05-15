@@ -11,6 +11,8 @@ const MT_HEADERS = {
   'Content-Type': 'application/json',
 }
 
+const MT_BASE = 'https://nrthrnstrong.marianatek.com/api'
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const start = searchParams.get('start') || new Date().toISOString().split('T')[0]
@@ -18,12 +20,12 @@ export async function GET(request: Request) {
 
   const results: any = {}
 
-  // 1. Sync instruktører — kun nye
+  // 1. Sync instruktører
   try {
     let allProfiles: any[] = []
     for (let page = 1; page <= 7; page++) {
       const res = await fetch(
-        `https://nrthrnstrong.marianatek.com/api/employee_public_profiles?per_page=10&page=${page}`,
+        `${MT_BASE}/employee_public_profiles?per_page=10&page=${page}`,
         { headers: MT_HEADERS }
       )
       const data = await res.json()
@@ -33,11 +35,11 @@ export async function GET(request: Request) {
     const instructorsToUpsert = await Promise.all(
       allProfiles.map(async (p) => {
         const userId = p.relationships?.employee?.data?.id
-          ? (await fetch(`https://nrthrnstrong.marianatek.com/api/employees/${p.relationships.employee.data.id}`, { headers: MT_HEADERS }).then(r => r.json()))?.data?.relationships?.user?.data?.id
+          ? (await fetch(`${MT_BASE}/employees/${p.relationships.employee.data.id}`, { headers: MT_HEADERS }).then(r => r.json()))?.data?.relationships?.user?.data?.id
           : null
         if (!userId) return null
 
-        const userRes = await fetch(`https://nrthrnstrong.marianatek.com/api/users/${userId}`, { headers: MT_HEADERS })
+        const userRes = await fetch(`${MT_BASE}/users/${userId}`, { headers: MT_HEADERS })
         const userData = await userRes.json()
         const u = userData.data?.attributes
 
@@ -74,27 +76,14 @@ export async function GET(request: Request) {
     results.instructors = `Fejl: ${e.message}`
   }
 
-  // 2. Sync sessions
+  // 2. Sync sessions (CPH)
   try {
-    // Hent alle members med is_over_30 i ét kald — bruges til over/under 30 beregning
-    const { data: allMembers } = await supabase
-      .from('members')
-      .select('mariana_tek_user_id, is_over_30')
-      .not('is_over_30', 'is', null)
-
-    const over30Set = new Set(
-      allMembers?.filter(m => m.is_over_30 === true).map(m => m.mariana_tek_user_id) || []
-    )
-    const under30Set = new Set(
-      allMembers?.filter(m => m.is_over_30 === false).map(m => m.mariana_tek_user_id) || []
-    )
-
     let allSessions: any[] = []
     let page = 1
 
     while (true) {
       const res = await fetch(
-        `https://nrthrnstrong.marianatek.com/api/class_sessions?min_date=${start}&max_date=${end}&location=48718&per_page=100&page=${page}`,
+        `${MT_BASE}/class_sessions?min_date=${start}&max_date=${end}&location=48718&per_page=100&page=${page}`,
         { headers: MT_HEADERS }
       )
       const data = await res.json()
@@ -104,75 +93,9 @@ export async function GET(request: Request) {
       page++
     }
 
-    // Tæl Bruce spots og over/under 30 for nylige sessions (sidste 7 dage)
-    const sevenDaysAgo = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-    const recentSessions = allSessions.filter(s => s.attributes.start_date >= sevenDaysAgo)
-
-    const bruceSpotsBySession: Record<string, number> = {}
-    const over30BySession: Record<string, number> = {}
-    const under30BySession: Record<string, number> = {}
-
-    for (const session of recentSessions) {
-      const reservationIds = session.relationships?.reservations?.data?.map((r: any) => r.id) || []
-      if (reservationIds.length === 0) continue
-
-      const reservations = await Promise.all(
-        reservationIds.map((id: string) =>
-          fetch(`https://nrthrnstrong.marianatek.com/api/reservations/${id}?include=tags,credit_transactions`, { headers: MT_HEADERS })
-            .then(r => r.json()).catch(() => null)
-        )
-      )
-
-      let over30 = 0
-      let under30 = 0
-      let bruceCount = 0
-      let unknownCount = 0
-
-      for (const r of reservations) {
-        if (!r?.data) continue
-
-        // Bruce spots
-        if (r.data.relationships?.broker?.data?.id === '53027') {
-          bruceCount++
-          continue
-        }
-
-        // Over/under 30
-        const userId = r.data.relationships?.user?.data?.id
-        if (!userId) continue
-
-        if (over30Set.has(userId)) {
-          over30++
-        } else if (under30Set.has(userId)) {
-          under30++
-        } else {
-          // Bruger ikke i members endnu — tæl som unknown
-          unknownCount++
-        }
-      }
-
-      // Fordel unknown proportionalt baseret på kendte tal
-      if (unknownCount > 0 && (over30 + under30) > 0) {
-        const ratio = over30 / (over30 + under30)
-        over30 += Math.round(unknownCount * ratio)
-        under30 += unknownCount - Math.round(unknownCount * ratio)
-      } else if (unknownCount > 0) {
-        // Ingen kendte — brug 50/50 som fallback
-        over30 += Math.round(unknownCount * 0.5)
-        under30 += unknownCount - Math.round(unknownCount * 0.5)
-      }
-
-      bruceSpotsBySession[session.id] = bruceCount
-      over30BySession[session.id] = over30
-      under30BySession[session.id] = under30
-    }
-
     const sessionsToUpsert = allSessions.map((s: any) => {
       const startDT = new Date(s.attributes.start_datetime)
       const time = startDT.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Copenhagen' })
-      const participants = s.attributes.standard_reservation_user_count || 0
-      const isRecent = s.attributes.start_date >= sevenDaysAgo
-
       return {
         id: s.id,
         date: s.attributes.start_date,
@@ -181,10 +104,7 @@ export async function GET(request: Request) {
         instructor_name: s.attributes.instructor_names?.[0] || '',
         instructor_profile_id: s.relationships?.employee_public_profiles?.data?.[0]?.id || null,
         capacity: s.attributes.capacity || 0,
-        participants,
-        participants_over_30: isRecent ? (over30BySession[s.id] ?? null) : null,
-        participants_under_30: isRecent ? (under30BySession[s.id] ?? null) : null,
-        bruce_spots: bruceSpotsBySession[s.id] || 0,
+        participants: s.attributes.standard_reservation_user_count || 0,
         location_id: s.relationships?.location?.data?.id || '48718',
         updated_at: new Date().toISOString(),
       }
@@ -206,7 +126,7 @@ export async function GET(request: Request) {
 
     while (page <= totalPages) {
       const res = await fetch(
-        `https://nrthrnstrong.marianatek.com/api/membership_instances?status=active&purchase_location=48718&per_page=100&page=${page}`,
+        `${MT_BASE}/membership_instances?status=active&purchase_location=48718&per_page=100&page=${page}`,
         { headers: MT_HEADERS }
       )
       const data = await res.json()
@@ -241,7 +161,7 @@ export async function GET(request: Request) {
     let page = 1
     while (true) {
       const res = await fetch(
-        `https://nrthrnstrong.marianatek.com/api/class_sessions?min_date=${start}&max_date=${end}&location=48718&per_page=100&page=${page}`,
+        `${MT_BASE}/class_sessions?min_date=${start}&max_date=${end}&location=48718&per_page=100&page=${page}`,
         { headers: MT_HEADERS }
       )
       const data = await res.json()
@@ -258,7 +178,7 @@ export async function GET(request: Request) {
     let synced = 0
     for (const resId of reservationIds) {
       try {
-        const resRes = await fetch(`https://nrthrnstrong.marianatek.com/api/reservations/${resId}`, { headers: MT_HEADERS })
+        const resRes = await fetch(`${MT_BASE}/reservations/${resId}`, { headers: MT_HEADERS })
         const resData = await resRes.json()
         const userId = resData.data?.relationships?.user?.data?.id
         if (!userId) continue
@@ -266,7 +186,7 @@ export async function GET(request: Request) {
         const { data: existing } = await supabase.from('members').select('id, birth_date').eq('mariana_tek_user_id', userId).single()
         if (existing?.birth_date) continue
 
-        const userRes = await fetch(`https://nrthrnstrong.marianatek.com/api/users/${userId}`, { headers: MT_HEADERS })
+        const userRes = await fetch(`${MT_BASE}/users/${userId}`, { headers: MT_HEADERS })
         const userData = await userRes.json()
         const u = userData.data?.attributes
 
@@ -293,6 +213,50 @@ export async function GET(request: Request) {
     results.birthdays = `${synced} nye fødselsdatoer hentet`
   } catch (e: any) {
     results.birthdays = `Fejl: ${e.message}`
+  }
+
+  // 5. Sync orders — gem i orders_cache
+  try {
+    const today = new Date().toISOString().split('T')[0]
+    let allOrders: any[] = []
+    let page = 1
+
+    while (page <= 20) {
+      const res = await fetch(
+        `${MT_BASE}/orders?min_datetime=${start}&per_page=100&page=${page}`,
+        { headers: MT_HEADERS }
+      )
+      const data = await res.json()
+      if (!data.data?.length) break
+      allOrders = [...allOrders, ...data.data]
+      if (data.meta?.pagination?.pages <= page) break
+      page++
+    }
+
+    // Filtrer på date_placed (MT ignorerer max_datetime) og kun completed
+    const ordersToUpsert = allOrders
+      .filter(o =>
+        o.attributes.status === 'Completed' &&
+        o.attributes.total > 0 &&
+        o.attributes.date_placed <= today + 'T23:59:59Z'
+      )
+      .map((o: any) => ({
+        id: o.id,
+        date_placed: o.attributes.date_placed,
+        location: o.attributes.location,
+        location_id: o.attributes.location === 'Copenhagen' ? '48718' : o.attributes.location === 'Flatiron' ? '48717' : null,
+        status: o.attributes.status,
+        total: o.attributes.total,
+        summary: o.attributes.summary?.[0] || null,
+        updated_at: new Date().toISOString(),
+      }))
+
+    if (ordersToUpsert.length > 0) {
+      const { error } = await supabase.from('orders_cache').upsert(ordersToUpsert, { onConflict: 'id' })
+      results.orders = error ? `Fejl: ${error.message}` : `${ordersToUpsert.length} orders synkroniseret`
+    }
+  } catch (e: any) {
+    results.orders = `Fejl: ${e.message}`
   }
 
   return NextResponse.json({ success: true, ...results })
