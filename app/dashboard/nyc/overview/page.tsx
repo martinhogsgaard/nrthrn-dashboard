@@ -12,7 +12,6 @@ interface OverviewData {
   currency: string
   mrr: number
   total_sales: number
-  total_sales: number
   total_revenue: number
   members: number
   new_members: number
