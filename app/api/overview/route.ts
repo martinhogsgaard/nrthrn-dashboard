@@ -16,19 +16,31 @@ export async function GET(request: Request) {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
 
-  // Hent sessions
-  const { data: allSessions } = await supabase
-    .from('sessions_cache').select('*')
-    .eq('location_id', location)
-    .gte('date', monthStart).lte('date', monthEnd)
+  // Hent alt fra Supabase — ingen live MT-kald
+  const [
+    { data: allSessions },
+    { data: instructors },
+    { data: memberships },
+    { data: members },
+    { data: newMembersData },
+    { data: bruceSessions },
+    { data: bruceRateData },
+    { data: orders },
+  ] = await Promise.all([
+    supabase.from('sessions_cache').select('*').eq('location_id', location).gte('date', monthStart).lte('date', monthEnd),
+    supabase.from('instructors').select('*, salary_rates(*)').eq('is_active', true),
+    supabase.from('membership_cache').select('*').eq('purchase_location_id', location).eq('status', 'active').gt('next_charge_date', new Date().toISOString()),
+    supabase.from('members').select('is_over_30').not('birth_date', 'is', null),
+    supabase.from('members').select('id').gte('joined_date', monthStart).lte('joined_date', today),
+    supabase.from('sessions_cache').select('date, bruce_spots').eq('location_id', location).gte('date', monthStart).lte('date', today).gt('bruce_spots', 0),
+    supabase.from('bruce_rates').select('rate_per_visit').eq('month', monthStart).single(),
+    supabase.from('orders_cache').select('total, summary').eq('location_id', location).gte('date_placed', monthStart).lte('date_placed', today + 'T23:59:59Z'),
+  ])
 
   const historicSessions = allSessions?.filter(s => s.date <= today) || []
   const futureSessions = allSessions?.filter(s => s.date > today) || []
 
-  // Hent instruktører
-  const { data: instructors } = await supabase
-    .from('instructors').select('*, salary_rates(*)').eq('is_active', true)
-
+  // Løn
   function calcTotalPayroll(sessions: any[]) {
     return (instructors || []).reduce((total, instructor) => {
       const activeRate = instructor.salary_rates
@@ -40,10 +52,8 @@ export async function GET(request: Request) {
         s.instructor_profile_id === instructor.mariana_tek_profile_id || s.instructor_name === instructor.name
       ).map(s => {
         const participants = s.participants || 0
-        const over30 = s.participants_over_30 !== null && s.participants_over_30 !== undefined
-          ? s.participants_over_30 : Math.round(participants * 0.5)
-        const under30 = s.participants_under_30 !== null && s.participants_under_30 !== undefined
-          ? s.participants_under_30 : participants - over30
+        const over30 = s.participants_over_30 ?? Math.round(participants * 0.5)
+        const under30 = s.participants_under_30 ?? participants - over30
         return { participants, participants_over_30: over30, participants_under_30: under30, date: s.date, class_name: s.class_type }
       })
 
@@ -56,31 +66,32 @@ export async function GET(request: Request) {
   const historicPayroll = calcTotalPayroll(historicSessions)
   const futurePayroll = calcTotalPayroll(futureSessions)
 
-  // Hent abonnementer
-  const { data: memberships } = await supabase
-    .from('membership_cache').select('*')
-    .eq('purchase_location_id', location).eq('status', 'active')
-    .gt('next_charge_date', new Date().toISOString())
-
+  // MRR og split
   const totalMRR = memberships?.reduce((s, m) => s + (m.renewal_rate || 0), 0) || 0
   const mrrOver30 = memberships?.filter(m => m.membership_name?.includes('30+')).reduce((s, m) => s + (m.renewal_rate || 0), 0) || 0
   const mrrOther = memberships?.filter(m => !m.membership_name?.includes('30+') && !m.membership_name?.includes('under 30')).reduce((s, m) => s + (m.renewal_rate || 0), 0) || 0
 
-  // Over/under 30 antal til visning
-  const { data: members } = await supabase
-    .from('members').select('is_over_30').not('birth_date', 'is', null)
+  // Over/under 30 antal
   const over30 = members?.filter(m => m.is_over_30 === true).length || 0
   const under30 = members?.filter(m => m.is_over_30 === false).length || 0
 
-  // Nye medlemmer denne måned
-  const { data: newMembersData } = await supabase
-    .from('members').select('id')
-    .gte('joined_date', monthStart).lte('joined_date', today)
+  // Bruce
+  const bruceRate = (bruceRateData as any)?.rate_per_visit || 95
+  const totalBruceVisits = bruceSessions?.reduce((s, x) => s + (x.bruce_spots || 0), 0) || 0
+  const bruceRevenue = Math.round(totalBruceVisits * bruceRate)
 
-  // Avg besøg pr. medlem
+  // Orders fra cache
+  const totalSales = Math.round((orders || []).reduce((s, o) => s + Number(o.total), 0))
+  const ordersOver30 = (orders || []).filter(o => !o.summary?.includes('under 30')).reduce((s, o) => s + Number(o.total), 0)
+
+  // Split%
+  const totalOver30 = mrrOver30 + mrrOther + ordersOver30 + bruceRevenue
+  const totalRevenue = totalMRR + totalSales + bruceRevenue
+  const splitPct = totalRevenue > 0 ? Math.round(totalOver30 / totalRevenue * 100) : 0
+
+  // Avg besøg
   const totalVisits = historicSessions.reduce((s, x) => s + (x.participants || 0), 0)
-  const avgVisits = (memberships?.length || 0) > 0
-    ? Math.round(totalVisits / (memberships?.length || 1) * 10) / 10 : 0
+  const avgVisits = (memberships?.length || 0) > 0 ? Math.round(totalVisits / (memberships?.length || 1) * 10) / 10 : 0
 
   // MRR historik
   const mrrHistory = Array.from({ length: 6 }, (_, i) => {
@@ -97,73 +108,16 @@ export async function GET(request: Request) {
   const futureAvgBelægning = futureWithCap.length > 0
     ? Math.round(futureWithCap.reduce((s, x) => s + (x.participants / x.capacity * 100), 0) / futureWithCap.length) : 0
 
-  const top3 = [...historicSessions].filter(s => s.participants > 0)
-    .sort((a, b) => b.participants - a.participants).slice(0, 3)
-
+  const top3 = [...historicSessions].filter(s => s.participants > 0).sort((a, b) => b.participants - a.participants).slice(0, 3)
   const lowBelægning = [...historicSessions]
     .filter(s => s.capacity > 0 && s.capacity < 50 && s.participants > 0 && s.participants / s.capacity < 0.4)
     .sort((a, b) => (a.participants / a.capacity) - (b.participants / b.capacity)).slice(0, 3)
-
-  // Bruce — besøg og indtægt denne måned
-  const { data: bruceSessions } = await supabase
-    .from('sessions_cache')
-    .select('date, bruce_spots')
-    .eq('location_id', location)
-    .gte('date', monthStart)
-    .lte('date', today)
-    .gt('bruce_spots', 0)
-
-  const { data: bruceRateData } = await supabase
-    .from('bruce_rates')
-    .select('rate_per_visit')
-    .eq('month', monthStart)
-    .single()
-
-  const bruceRate = bruceRateData?.rate_per_visit || 95
-  const totalBruceVisits = bruceSessions?.reduce((s, x) => s + (x.bruce_spots || 0), 0) || 0
-  const bruceRevenue = Math.round(totalBruceVisits * bruceRate)
-
-  // Orders — hent alle og filtrer på date_placed i koden
-  let allOrders: any[] = []
-  let ordersPage = 1
-  while (ordersPage <= 10) {
-    const ordersRes = await fetch(
-      `https://nrthrnstrong.marianatek.com/api/orders?min_datetime=${monthStart}&per_page=100&page=${ordersPage}`,
-      { headers: { 'Authorization': `Bearer ${process.env.MARIANA_TEK_API_KEY}`, 'Content-Type': 'application/json' } }
-    )
-    const ordersData = await ordersRes.json()
-    if (!ordersData.data?.length) break
-    allOrders = [...allOrders, ...ordersData.data]
-    if (ordersData.meta?.pagination?.pages <= ordersPage) break
-    ordersPage++
-  }
-
-  const cphOrders = allOrders.filter(o =>
-    o.attributes.location === 'Copenhagen' &&
-    o.attributes.status === 'Completed' &&
-    o.attributes.total > 0 &&
-    o.attributes.date_placed >= monthStart &&
-    o.attributes.date_placed <= today + 'T23:59:59Z'
-  )
-  const totalSales = Math.round(cphOrders.reduce((s, o) => s + o.attributes.total, 0))
-
-  // Split% beregnet på MRR + orders + bruce
-  const ordersOver30 = cphOrders
-    .filter(o => !o.attributes.summary?.[0]?.includes('under 30'))
-    .reduce((s, o) => s + o.attributes.total, 0)
-  const totalOver30 = mrrOver30 + mrrOther + ordersOver30 + bruceRevenue
-  const totalRevenue = totalMRR + totalSales + bruceRevenue
-  const splitPct = totalRevenue > 0 ? Math.round(totalOver30 / totalRevenue * 100) : 0
 
   return NextResponse.json({
     period: { start: monthStart, today, end: monthEnd },
     mrr: totalMRR,
     total_sales: totalSales,
-    bruce: {
-      visits: totalBruceVisits,
-      revenue: bruceRevenue,
-      rate: bruceRate,
-    },
+    bruce: { visits: totalBruceVisits, revenue: bruceRevenue, rate: bruceRate },
     total_revenue: Math.round(totalRevenue),
     members: memberships?.length || 0,
     new_members: newMembersData?.length || 0,
@@ -172,18 +126,8 @@ export async function GET(request: Request) {
     over30_members: over30,
     under30_members: under30,
     mrr_history: mrrHistory,
-    historic: {
-      sessions: historicSessions.length,
-      participants: historicSessions.reduce((s, x) => s + (x.participants || 0), 0),
-      avg_belægning: historicAvgBelægning,
-      payroll: Math.round(historicPayroll),
-    },
-    future: {
-      sessions: futureSessions.length,
-      participants: futureSessions.reduce((s, x) => s + (x.participants || 0), 0),
-      avg_belægning: futureAvgBelægning,
-      payroll: Math.round(futurePayroll),
-    },
+    historic: { sessions: historicSessions.length, participants: totalVisits, avg_belægning: historicAvgBelægning, payroll: Math.round(historicPayroll) },
+    future: { sessions: futureSessions.length, participants: futureSessions.reduce((s, x) => s + (x.participants || 0), 0), avg_belægning: futureAvgBelægning, payroll: Math.round(futurePayroll) },
     total_estimated_payroll: Math.round(historicPayroll + futurePayroll),
     top3_sessions: top3,
     low_belægning: lowBelægning,
