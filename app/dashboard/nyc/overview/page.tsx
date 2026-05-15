@@ -12,6 +12,7 @@ interface OverviewData {
   currency: string
   mrr: number
   total_sales: number
+  total_sales: number
   total_revenue: number
   members: number
   new_members: number
@@ -46,7 +47,7 @@ export default function NYCOverviewPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 16 }}>
         {[
           { label: 'MRR', val: formatUSD(data.mrr), sub: data.members + ' aktive abonnementer' },
-          { label: 'Total salg denne måned', val: formatUSD(data.total_sales), sub: 'Klipkort og løssalg' },
+          { label: 'Nye køb denne måned', val: formatUSD(data.total_sales), sub: 'Klipkort, pakker og løssalg' },
           { label: 'Samlet omsætning', val: formatUSD(data.total_revenue), sub: 'MRR + nye køb' },
           { label: 'Bruce-besøg', val: data.bruce.visits, sub: 'Denne måned' },
         ].map((k: any, i) => (
