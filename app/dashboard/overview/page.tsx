@@ -17,8 +17,7 @@ interface OverviewData {
   under30_members: number
   mrr_history: { month: string, mrr: number }[]
   historic: { sessions: number, participants: number, avg_belægning: number, payroll: number }
-  future: { sessions: number, participants: number, avg_belægning: number, payroll: number }
-  total_estimated_payroll: number
+  equipment_sales: number
   top3_sessions: any[]
   low_belægning: any[]
 }
@@ -53,12 +52,13 @@ export default function OverviewPage() {
       <SecLabel>Overblik — København · {new Date().toLocaleDateString('da-DK', { month: 'long', year: 'numeric' })}</SecLabel>
 
       {/* Række 1 — Økonomi */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 16, marginBottom: 16 }}>
         {[
           { label: 'MRR', val: formatDKK(data.mrr), sub: data.members + ' aktive abonnementer' },
           { label: 'Total salg denne måned', val: formatDKK(data.total_sales || 0), sub: 'Klipkort, events og løssalg' },
           { label: 'Bruce-indtægt', val: formatDKK(data.bruce?.revenue || 0), sub: (data.bruce?.visits || 0) + ' besøg · ' + (data.bruce?.rate || 95) + ' kr./besøg', color: '#1a1228' },
-          { label: 'Samlet omsætning', val: formatDKK(data.total_revenue || data.mrr), sub: 'MRR + nye køb + Bruce' },
+          { label: 'NRTHRN Salg', val: formatDKK(data.equipment_sales || 0), sub: 'Udstyr og maskiner' },
+          { label: 'Samlet omsætning', val: formatDKK(data.total_revenue || data.mrr), sub: 'MRR + køb + Bruce + salg' },
         ].map((k: any, i) => (
           <div key={i} style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: '18px 16px', borderTop: '3px solid ' + (k.color || '#6b5ca5') }}>
             <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 10 }}>{k.label}</div>
@@ -85,7 +85,7 @@ export default function OverviewPage() {
       </div>
 
       {/* Række 3 — Afholdt/Planlagt */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, marginBottom: 16 }}>
         <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#2e8b6a' }} />
@@ -105,33 +105,15 @@ export default function OverviewPage() {
             ))}
           </div>
         </div>
-        <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#9a6200' }} />
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: '#9a6200' }}>Planlagt — resten af {new Date().toLocaleDateString('da-DK', { month: 'long' })}</div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {[
-              { label: 'Planlagte hold', val: data.future.sessions },
-              { label: 'Bookede pladser', val: data.future.participants },
-              { label: 'Nuv. belægning', val: data.future.avg_belægning + '%' },
-              { label: 'Est. lønomk.', val: formatDKK(data.future.payroll) },
-            ].map((k, i) => (
-              <div key={i} style={{ background: '#fff8e8', borderRadius: 8, padding: '12px 14px' }}>
-                <div style={{ fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 6 }}>{k.label}</div>
-                <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 24, fontWeight: 700, color: '#1a1520' }}>{k.val}</div>
-              </div>
-            ))}
-          </div>
-        </div>
+
       </div>
 
       {/* Række 4 — Løn + MRR graf */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
         <div style={{ background: '#f2f0f9', border: '1px solid #d0c8e8', borderRadius: 10, padding: 24 }}>
-          <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 600, marginBottom: 8 }}>Estimeret samlet lønomk. denne måned</div>
-          <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 40, fontWeight: 700, color: '#6b5ca5', lineHeight: 1 }}>{formatDKK(data.total_estimated_payroll)}</div>
-          <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 8 }}>Optjent: {formatDKK(data.historic.payroll)} + Planlagt: {formatDKK(data.future.payroll)}</div>
+          <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 600, marginBottom: 8 }}>Lønomkostninger til dato</div>
+          <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 40, fontWeight: 700, color: '#6b5ca5', lineHeight: 1 }}>{formatDKK(data.historic.payroll)}</div>
+          <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 8 }}>Afholdte hold 1.–{new Date().getDate()}. {new Date().toLocaleDateString('da-DK', { month: 'long' })}</div>
         </div>
         <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
           <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 16 }}>MRR — seneste 6 måneder</div>

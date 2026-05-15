@@ -35,10 +35,11 @@ export async function GET(request: Request) {
     supabase.from('sessions_cache').select('date, bruce_spots').eq('location_id', location).gte('date', monthStart).lte('date', today).gt('bruce_spots', 0),
     supabase.from('bruce_rates').select('rate_per_visit').eq('month', monthStart).single(),
     supabase.from('orders_cache').select('total, summary').eq('location_id', location).gte('date_placed', monthStart).lte('date_placed', today + 'T23:59:59Z'),
+    supabase.from('equipment_sales').select('sale_price, quantity').eq('location_id', location).gte('sale_date', monthStart).lte('sale_date', today),
   ])
 
-  const historicSessions = allSessions?.filter(s => s.date <= today) || []
-  const futureSessions = allSessions?.filter(s => s.date > today) || []
+  const historicSessions = allSessions?.filter(s => s.date <= today && !s.is_cancelled) || []
+  const futureSessions = allSessions?.filter(s => s.date > today && !s.is_cancelled) || []
 
   // Løn
   function calcTotalPayroll(sessions: any[]) {
@@ -85,8 +86,8 @@ export async function GET(request: Request) {
   const ordersOver30 = (orders || []).filter(o => !o.summary?.includes('under 30')).reduce((s, o) => s + Number(o.total), 0)
 
   // Split%
-  const totalOver30 = mrrOver30 + mrrOther + ordersOver30 + bruceRevenue
-  const totalRevenue = totalMRR + totalSales + bruceRevenue
+  const totalOver30 = mrrOver30 + mrrOther + ordersOver30 + bruceRevenue + equipmentRevenue
+  const totalRevenue = totalMRR + totalSales + bruceRevenue + equipmentRevenue
   const splitPct = totalRevenue > 0 ? Math.round(totalOver30 / totalRevenue * 100) : 0
 
   // Avg besøg
@@ -118,6 +119,7 @@ export async function GET(request: Request) {
     mrr: totalMRR,
     total_sales: totalSales,
     bruce: { visits: totalBruceVisits, revenue: bruceRevenue, rate: bruceRate },
+    equipment_sales: equipmentRevenue,
     total_revenue: Math.round(totalRevenue),
     members: memberships?.length || 0,
     new_members: newMembersData?.length || 0,
