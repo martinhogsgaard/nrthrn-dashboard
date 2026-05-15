@@ -283,16 +283,9 @@ function InstructorDetail({ data: d, period, onBack }: { data: InstructorPayroll
                   <td style={{ padding: '10px 14px', color: '#8a85a0' }}>{s.participants > 0 ? `${pct}%` : '—'}</td>
                   <td style={{ padding: '10px 14px', color: '#4a4560' }}>{formatDKK(baseRate)}</td>
                   <td style={{ padding: '10px 14px' }}>
-                    {bonusLines.length > 0 ? (
-                      <div>
-                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: '#f2f0f9', color: '#6b5ca5', border: '1px solid #d0c8e8', fontWeight: 600 }}>+{formatDKK(bonusLines.reduce((s, b) => s + b.amount, 0))}</span>
-                        <div style={{ marginTop: 4 }}>
-                          {bonusLines.map((bl, bi) => (
-                            <div key={bi} style={{ fontSize: 9, color: '#8a85a0', marginTop: 1 }}>{bl.label} = {formatDKK(bl.amount)}</div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : '—'}
+                    {bonusLines.length > 0
+                      ? <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: '#f2f0f9', color: '#6b5ca5', border: '1px solid #d0c8e8', fontWeight: 600 }}>+{formatDKK(bonusLines.reduce((s, b) => s + b.amount, 0))}</span>
+                      : '—'}
                   </td>
                   <td style={{ padding: '10px 14px', fontWeight: 700, color: '#1a1520' }}>{formatDKK(baseRate + bonusLines.reduce((s, b) => s + b.amount, 0))}</td>
                 </tr>
