@@ -13,14 +13,23 @@ const MT_HEADERS = {
 
 const MT_BASE = 'https://nrthrnstrong.marianatek.com/api'
 
+function getYesterday() {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return d.toISOString().split('T')[0]
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const start = searchParams.get('start') || new Date().toISOString().split('T')[0]
-  const end = searchParams.get('end') || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]
+  const yesterday = getYesterday()
+
+  // Sessions og orders synces til og med i går — aldrig halvt afholdte dage
+  const sessionStart = searchParams.get('start') || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
+  const sessionEnd = searchParams.get('end') || yesterday
 
   const results: any = {}
 
-  // 1. Sync instruktører
+  // 1. Sync instruktører — stamdata, altid aktuel
   try {
     let allProfiles: any[] = []
     for (let page = 1; page <= 7; page++) {
@@ -42,20 +51,15 @@ export async function GET(request: Request) {
         const userRes = await fetch(`${MT_BASE}/users/${userId}`, { headers: MT_HEADERS })
         const userData = await userRes.json()
         const u = userData.data?.attributes
-
         const firstName = u?.first_name || ''
         const lastName = u?.last_name || ''
-        const fullName = `${firstName} ${lastName}`.trim()
         const homeLocationId = userData.data?.relationships?.home_location?.data?.id
-
-        const { data: locationData } = await supabase
-          .from('locations').select('id')
-          .eq('mariana_tek_location_id', homeLocationId).single()
+        const { data: locationData } = await supabase.from('locations').select('id').eq('mariana_tek_location_id', homeLocationId).single()
 
         return {
           mariana_tek_id: p.relationships?.employee?.data?.id,
           mariana_tek_profile_id: p.id,
-          name: fullName || 'Ukendt',
+          name: `${firstName} ${lastName}`.trim() || 'Ukendt',
           initials: [firstName[0], lastName[0]].filter(Boolean).join('').toUpperCase().slice(0, 2) || '??',
           email: u?.email || null,
           birth_date: u?.birth_date || null,
@@ -76,14 +80,14 @@ export async function GET(request: Request) {
     results.instructors = `Fejl: ${e.message}`
   }
 
-  // 2. Sync sessions (CPH)
+  // 2. Sync sessions — kun til og med i går
   try {
     let allSessions: any[] = []
     let page = 1
 
     while (true) {
       const res = await fetch(
-        `${MT_BASE}/class_sessions?min_date=${start}&max_date=${end}&location=48718&per_page=100&page=${page}`,
+        `${MT_BASE}/class_sessions?min_date=${sessionStart}&max_date=${sessionEnd}&location=48718&per_page=100&page=${page}`,
         { headers: MT_HEADERS }
       )
       const data = await res.json()
@@ -112,13 +116,13 @@ export async function GET(request: Request) {
 
     if (sessionsToUpsert.length > 0) {
       const { error } = await supabase.from('sessions_cache').upsert(sessionsToUpsert, { onConflict: 'id' })
-      results.sessions = error ? `Fejl: ${error.message}` : `${sessionsToUpsert.length} sessions synkroniseret`
+      results.sessions = error ? `Fejl: ${error.message}` : `${sessionsToUpsert.length} sessions synkroniseret (til og med ${sessionEnd})`
     }
   } catch (e: any) {
     results.sessions = `Fejl: ${e.message}`
   }
 
-  // 3. Sync memberships
+  // 3. Sync memberships — altid aktuel status
   try {
     let allInstances: any[] = []
     let page = 1
@@ -155,75 +159,14 @@ export async function GET(request: Request) {
     results.memberships = `Fejl: ${e.message}`
   }
 
-  // 4. Sync fødselsdatoer — kun nye brugere
+  // 4. Sync orders — kun til og med i går
   try {
-    let allSessions2: any[] = []
-    let page = 1
-    while (true) {
-      const res = await fetch(
-        `${MT_BASE}/class_sessions?min_date=${start}&max_date=${end}&location=48718&per_page=100&page=${page}`,
-        { headers: MT_HEADERS }
-      )
-      const data = await res.json()
-      if (!data.data?.length) break
-      allSessions2 = [...allSessions2, ...data.data]
-      if (data.meta?.pagination?.pages <= page) break
-      page++
-    }
-
-    const reservationIds = [...new Set(
-      allSessions2.flatMap((s: any) => s.relationships?.reservations?.data?.map((r: any) => r.id) || [])
-    )]
-
-    let synced = 0
-    for (const resId of reservationIds) {
-      try {
-        const resRes = await fetch(`${MT_BASE}/reservations/${resId}`, { headers: MT_HEADERS })
-        const resData = await resRes.json()
-        const userId = resData.data?.relationships?.user?.data?.id
-        if (!userId) continue
-
-        const { data: existing } = await supabase.from('members').select('id, birth_date').eq('mariana_tek_user_id', userId).single()
-        if (existing?.birth_date) continue
-
-        const userRes = await fetch(`${MT_BASE}/users/${userId}`, { headers: MT_HEADERS })
-        const userData = await userRes.json()
-        const u = userData.data?.attributes
-
-        const dob = u?.birth_date || null
-        const isOver30 = dob ? (() => {
-          const d = new Date(dob), t = new Date()
-          let age = t.getFullYear() - d.getFullYear()
-          const m = t.getMonth() - d.getMonth()
-          if (m < 0 || (m === 0 && t.getDate() < d.getDate())) age--
-          return age >= 30
-        })() : null
-
-        await supabase.from('members').upsert({
-          mariana_tek_user_id: userId,
-          first_name: u?.first_name, last_name: u?.last_name, email: u?.email,
-          birth_date: dob, is_over_30: isOver30,
-          home_location_id: userData.data?.relationships?.home_location?.data?.id || null,
-          is_active: true,
-          joined_date: u?.date_joined ? u.date_joined.split('T')[0] : null,
-        }, { onConflict: 'mariana_tek_user_id' })
-        synced++
-      } catch { }
-    }
-    results.birthdays = `${synced} nye fødselsdatoer hentet`
-  } catch (e: any) {
-    results.birthdays = `Fejl: ${e.message}`
-  }
-
-  // 5. Sync orders — gem i orders_cache
-  try {
-    const today = new Date().toISOString().split('T')[0]
     let allOrders: any[] = []
     let page = 1
 
     while (page <= 20) {
       const res = await fetch(
-        `${MT_BASE}/orders?min_datetime=${start}&per_page=100&page=${page}`,
+        `${MT_BASE}/orders?min_datetime=${sessionStart}&per_page=100&page=${page}`,
         { headers: MT_HEADERS }
       )
       const data = await res.json()
@@ -233,12 +176,11 @@ export async function GET(request: Request) {
       page++
     }
 
-    // Filtrer på date_placed (MT ignorerer max_datetime) og kun completed
     const ordersToUpsert = allOrders
       .filter(o =>
         o.attributes.status === 'Completed' &&
         o.attributes.total > 0 &&
-        o.attributes.date_placed <= today + 'T23:59:59Z'
+        o.attributes.date_placed <= sessionEnd + 'T23:59:59Z'
       )
       .map((o: any) => ({
         id: o.id,
@@ -253,11 +195,11 @@ export async function GET(request: Request) {
 
     if (ordersToUpsert.length > 0) {
       const { error } = await supabase.from('orders_cache').upsert(ordersToUpsert, { onConflict: 'id' })
-      results.orders = error ? `Fejl: ${error.message}` : `${ordersToUpsert.length} orders synkroniseret`
+      results.orders = error ? `Fejl: ${error.message}` : `${ordersToUpsert.length} orders synkroniseret (til og med ${sessionEnd})`
     }
   } catch (e: any) {
     results.orders = `Fejl: ${e.message}`
   }
 
-  return NextResponse.json({ success: true, ...results })
+  return NextResponse.json({ success: true, synced_until: sessionEnd, ...results })
 }

@@ -1,8 +1,6 @@
 {
   "crons": [
-    {
-      "path": "/api/sync-cache",
-      "schedule": "0 5 * * *"
-    }
+    { "path": "/api/sync-cache", "schedule": "0 5 * * *" },
+    { "path": "/api/sync-sessions-detail", "schedule": "30 5 * * *" }
   ]
 }
