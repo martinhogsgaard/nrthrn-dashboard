@@ -19,16 +19,94 @@ function getYesterday() {
   return d.toISOString().split('T')[0]
 }
 
+async function syncSessions(locationId: string, sessionStart: string, sessionEnd: string) {
+  let allSessions: any[] = []
+  let page = 1
+
+  while (true) {
+    const res = await fetch(
+      `${MT_BASE}/class_sessions?min_date=${sessionStart}&max_date=${sessionEnd}&location=${locationId}&per_page=100&page=${page}`,
+      { headers: MT_HEADERS }
+    )
+    const data = await res.json()
+    if (!data.data?.length) break
+    allSessions = [...allSessions, ...data.data]
+    if (data.meta?.pagination?.pages <= page) break
+    page++
+  }
+
+  const timeZone = locationId === '48718' ? 'Europe/Copenhagen' : 'America/New_York'
+
+  const sessionsToUpsert = allSessions.map((s: any) => {
+    const startDT = new Date(s.attributes.start_datetime)
+    const time = startDT.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit', timeZone })
+    return {
+      id: s.id,
+      date: s.attributes.start_date,
+      time,
+      class_type: s.attributes.class_type_display,
+      instructor_name: s.attributes.instructor_names?.[0] || '',
+      instructor_profile_id: s.relationships?.employee_public_profiles?.data?.[0]?.id || null,
+      capacity: s.attributes.capacity || 0,
+      participants: s.attributes.standard_reservation_user_count || 0,
+      is_cancelled: s.attributes.cancellation_datetime !== null,
+      cancellation_datetime: s.attributes.cancellation_datetime || null,
+      location_id: s.relationships?.location?.data?.id || locationId,
+      updated_at: new Date().toISOString(),
+    }
+  })
+
+  if (sessionsToUpsert.length > 0) {
+    const { error } = await supabase.from('sessions_cache').upsert(sessionsToUpsert, { onConflict: 'id' })
+    if (error) throw new Error(error.message)
+  }
+
+  return sessionsToUpsert.length
+}
+
+async function syncMemberships(locationId: string) {
+  let allInstances: any[] = []
+  let page = 1
+  let totalPages = 1
+
+  while (page <= totalPages) {
+    const res = await fetch(
+      `${MT_BASE}/membership_instances?status=active&purchase_location=${locationId}&per_page=100&page=${page}`,
+      { headers: MT_HEADERS }
+    )
+    const data = await res.json()
+    totalPages = data.meta?.pagination?.pages || 1
+    allInstances = [...allInstances, ...(data.data || [])]
+    if (page >= totalPages) break
+    page++
+  }
+
+  const membershipsToUpsert = allInstances.map((t: any) => ({
+    id: t.id,
+    membership_name: t.attributes.membership_name,
+    renewal_rate: parseFloat(t.attributes.renewal_rate) || 0,
+    age_group: t.attributes.membership_name?.includes('30+') ? 'over30' : t.attributes.membership_name?.includes('under 30') ? 'under30' : 'other',
+    purchase_location_id: t.relationships?.purchase_location?.data?.id || locationId,
+    next_charge_date: t.attributes.next_charge_date,
+    status: t.attributes.status || 'active',
+    updated_at: new Date().toISOString(),
+  }))
+
+  if (membershipsToUpsert.length > 0) {
+    const { error } = await supabase.from('membership_cache').upsert(membershipsToUpsert, { onConflict: 'id' })
+    if (error) throw new Error(error.message)
+  }
+
+  return membershipsToUpsert.length
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const yesterday = getYesterday()
   const now = new Date()
 
-  // Sessions: hele måneden inkl. fremtidige hold
   const sessionStart = searchParams.get('start') || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
   const sessionEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
-
-  // Orders: altid kun til og med i går — aldrig fremtidige
   const ordersStart = searchParams.get('start') || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
   const ordersEnd = yesterday
 
@@ -82,88 +160,25 @@ export async function GET(request: Request) {
     results.instructors = `Fejl: ${e.message}`
   }
 
-  // 2. Sync sessions — hele måneden inkl. fremtidige
+  // 2. Sync sessions — CPH + NYC
   try {
-    let allSessions: any[] = []
-    let page = 1
-
-    while (true) {
-      const res = await fetch(
-        `${MT_BASE}/class_sessions?min_date=${sessionStart}&max_date=${sessionEnd}&location=48718&per_page=100&page=${page}`,
-        { headers: MT_HEADERS }
-      )
-      const data = await res.json()
-      if (!data.data?.length) break
-      allSessions = [...allSessions, ...data.data]
-      if (data.meta?.pagination?.pages <= page) break
-      page++
-    }
-
-    const sessionsToUpsert = allSessions.map((s: any) => {
-      const startDT = new Date(s.attributes.start_datetime)
-      const time = startDT.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Copenhagen' })
-      return {
-        id: s.id,
-        date: s.attributes.start_date,
-        time,
-        class_type: s.attributes.class_type_display,
-        instructor_name: s.attributes.instructor_names?.[0] || '',
-        instructor_profile_id: s.relationships?.employee_public_profiles?.data?.[0]?.id || null,
-        capacity: s.attributes.capacity || 0,
-        participants: s.attributes.standard_reservation_user_count || 0,
-        is_cancelled: s.attributes.cancellation_datetime !== null,
-        cancellation_datetime: s.attributes.cancellation_datetime || null,
-        location_id: s.relationships?.location?.data?.id || '48718',
-        updated_at: new Date().toISOString(),
-      }
-    })
-
-    if (sessionsToUpsert.length > 0) {
-      const { error } = await supabase.from('sessions_cache').upsert(sessionsToUpsert, { onConflict: 'id' })
-      results.sessions = error ? `Fejl: ${error.message}` : `${sessionsToUpsert.length} sessions synkroniseret`
-    }
+    const cphCount = await syncSessions('48718', sessionStart, sessionEnd)
+    const nycCount = await syncSessions('48717', sessionStart, sessionEnd)
+    results.sessions = `${cphCount + nycCount} sessions synkroniseret (CPH: ${cphCount}, NYC: ${nycCount})`
   } catch (e: any) {
     results.sessions = `Fejl: ${e.message}`
   }
 
-  // 3. Sync memberships
+  // 3. Sync memberships — CPH + NYC
   try {
-    let allInstances: any[] = []
-    let page = 1
-    let totalPages = 1
-
-    while (page <= totalPages) {
-      const res = await fetch(
-        `${MT_BASE}/membership_instances?status=active&purchase_location=48718&per_page=100&page=${page}`,
-        { headers: MT_HEADERS }
-      )
-      const data = await res.json()
-      totalPages = data.meta?.pagination?.pages || 1
-      allInstances = [...allInstances, ...(data.data || [])]
-      if (page >= totalPages) break
-      page++
-    }
-
-    const membershipsToUpsert = allInstances.map((t: any) => ({
-      id: t.id,
-      membership_name: t.attributes.membership_name,
-      renewal_rate: parseFloat(t.attributes.renewal_rate) || 0,
-      age_group: t.attributes.membership_name?.includes('30+') ? 'over30' : t.attributes.membership_name?.includes('under 30') ? 'under30' : 'other',
-      purchase_location_id: t.relationships?.purchase_location?.data?.id || '48718',
-      next_charge_date: t.attributes.next_charge_date,
-      status: t.attributes.status || 'active',
-      updated_at: new Date().toISOString(),
-    }))
-
-    if (membershipsToUpsert.length > 0) {
-      const { error } = await supabase.from('membership_cache').upsert(membershipsToUpsert, { onConflict: 'id' })
-      results.memberships = error ? `Fejl: ${error.message}` : `${membershipsToUpsert.length} abonnementer synkroniseret`
-    }
+    const cphCount = await syncMemberships('48718')
+    const nycCount = await syncMemberships('48717')
+    results.memberships = `${cphCount + nycCount} abonnementer synkroniseret (CPH: ${cphCount}, NYC: ${nycCount})`
   } catch (e: any) {
     results.memberships = `Fejl: ${e.message}`
   }
 
-  // 4. Sync orders — altid kun til og med i går
+  // 4. Sync orders — begge lokationer, kun til og med i går
   try {
     let allOrders: any[] = []
     let page = 1
