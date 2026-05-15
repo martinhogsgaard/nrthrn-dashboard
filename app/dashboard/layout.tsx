@@ -12,7 +12,6 @@ const NAV = [
       { href: '/dashboard/overview', label: 'Overblik' },
       { href: '/dashboard/classes', label: 'Hold' },
       { href: '/dashboard/members', label: 'Medlemmer' },
-      { href: '/dashboard/instructors', label: 'Instruktører' },
       { href: '/dashboard/payroll', label: 'Løn' },
       { href: '/dashboard/splits', label: 'Split-moms' },
       { href: '/dashboard/bruce', label: 'Bruce' },
