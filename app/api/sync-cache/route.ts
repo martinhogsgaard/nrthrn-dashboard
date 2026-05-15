@@ -22,21 +22,23 @@ function getYesterday() {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const yesterday = getYesterday()
+  const now = new Date()
 
-  // Sessions og orders synces til og med i går — aldrig halvt afholdte dage
-  const sessionStart = searchParams.get('start') || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
-  const sessionEnd = searchParams.get('end') || yesterday
+  // Sessions: hele måneden inkl. fremtidige hold
+  const sessionStart = searchParams.get('start') || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+  const sessionEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+
+  // Orders: altid kun til og med i går — aldrig fremtidige
+  const ordersStart = searchParams.get('start') || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+  const ordersEnd = yesterday
 
   const results: any = {}
 
-  // 1. Sync instruktører — stamdata, altid aktuel
+  // 1. Sync instruktører
   try {
     let allProfiles: any[] = []
     for (let page = 1; page <= 7; page++) {
-      const res = await fetch(
-        `${MT_BASE}/employee_public_profiles?per_page=10&page=${page}`,
-        { headers: MT_HEADERS }
-      )
+      const res = await fetch(`${MT_BASE}/employee_public_profiles?per_page=10&page=${page}`, { headers: MT_HEADERS })
       const data = await res.json()
       allProfiles = [...allProfiles, ...(data.data || [])]
     }
@@ -80,7 +82,7 @@ export async function GET(request: Request) {
     results.instructors = `Fejl: ${e.message}`
   }
 
-  // 2. Sync sessions — kun til og med i går
+  // 2. Sync sessions — hele måneden inkl. fremtidige
   try {
     let allSessions: any[] = []
     let page = 1
@@ -116,13 +118,13 @@ export async function GET(request: Request) {
 
     if (sessionsToUpsert.length > 0) {
       const { error } = await supabase.from('sessions_cache').upsert(sessionsToUpsert, { onConflict: 'id' })
-      results.sessions = error ? `Fejl: ${error.message}` : `${sessionsToUpsert.length} sessions synkroniseret (til og med ${sessionEnd})`
+      results.sessions = error ? `Fejl: ${error.message}` : `${sessionsToUpsert.length} sessions synkroniseret`
     }
   } catch (e: any) {
     results.sessions = `Fejl: ${e.message}`
   }
 
-  // 3. Sync memberships — altid aktuel status
+  // 3. Sync memberships
   try {
     let allInstances: any[] = []
     let page = 1
@@ -159,14 +161,14 @@ export async function GET(request: Request) {
     results.memberships = `Fejl: ${e.message}`
   }
 
-  // 4. Sync orders — kun til og med i går
+  // 4. Sync orders — altid kun til og med i går
   try {
     let allOrders: any[] = []
     let page = 1
 
     while (page <= 20) {
       const res = await fetch(
-        `${MT_BASE}/orders?min_datetime=${sessionStart}&per_page=100&page=${page}`,
+        `${MT_BASE}/orders?min_datetime=${ordersStart}&per_page=100&page=${page}`,
         { headers: MT_HEADERS }
       )
       const data = await res.json()
@@ -180,7 +182,7 @@ export async function GET(request: Request) {
       .filter(o =>
         o.attributes.status === 'Completed' &&
         o.attributes.total > 0 &&
-        o.attributes.date_placed <= sessionEnd + 'T23:59:59Z'
+        o.attributes.date_placed <= ordersEnd + 'T23:59:59Z'
       )
       .map((o: any) => ({
         id: o.id,
@@ -195,11 +197,11 @@ export async function GET(request: Request) {
 
     if (ordersToUpsert.length > 0) {
       const { error } = await supabase.from('orders_cache').upsert(ordersToUpsert, { onConflict: 'id' })
-      results.orders = error ? `Fejl: ${error.message}` : `${ordersToUpsert.length} orders synkroniseret (til og med ${sessionEnd})`
+      results.orders = error ? `Fejl: ${error.message}` : `${ordersToUpsert.length} orders synkroniseret (til og med ${ordersEnd})`
     }
   } catch (e: any) {
     results.orders = `Fejl: ${e.message}`
   }
 
-  return NextResponse.json({ success: true, synced_until: sessionEnd, ...results })
+  return NextResponse.json({ success: true, ...results })
 }
