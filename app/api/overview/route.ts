@@ -26,6 +26,7 @@ export async function GET(request: Request) {
     { data: bruceSessions },
     { data: bruceRateData },
     { data: orders },
+    { data: equipmentSales },
   ] = await Promise.all([
     supabase.from('sessions_cache').select('*').eq('location_id', location).gte('date', monthStart).lte('date', monthEnd),
     supabase.from('instructors').select('*, salary_rates(*)').eq('is_active', true),
