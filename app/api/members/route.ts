@@ -10,12 +10,13 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const location = searchParams.get('location') || '48718'
 
+  // Inkluder memberships med null next_charge_date (fx 2-Week Unlimited)
   const { data, error } = await supabase
     .from('membership_cache')
     .select('*')
     .eq('purchase_location_id', location)
     .eq('status', 'active')
-    .gt('next_charge_date', new Date().toISOString())
+    .or(`next_charge_date.gt.${new Date().toISOString()},next_charge_date.is.null`)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
@@ -45,7 +46,7 @@ export async function GET(request: Request) {
 
   const freeMemberships = Object.entries(freeGrouped).map(([name, d]: [string, any]) => ({
     name, count: d.count, price: 0, mrr: 0,
-    age_group: name.includes('30+') ? 'over30' : name.includes('under 30') ? 'under30' : 'other',
+    age_group: 'other',
     is_free: true,
   })).sort((a, b) => b.count - a.count)
 
