@@ -4,8 +4,9 @@ const { createClient } = require('@supabase/supabase-js')
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
 const location = process.argv[2] || 'nyc'
-const isCPH = location === 'cph'
+const type = process.argv[3] || 'all' // clients, purchases, eller all
 
+const isCPH = location === 'cph'
 const PARTNER_ID = isCPH ? process.env.ARKETA_CPH_PARTNER_ID : process.env.ARKETA_PARTNER_ID
 const API_KEY = isCPH ? process.env.ARKETA_CPH_API_KEY : process.env.ARKETA_API_KEY
 const LOCATION_ID = isCPH ? '48718' : '48717'
@@ -13,7 +14,7 @@ const LOCATION_ID = isCPH ? '48718' : '48717'
 const BASE = 'https://us-central1-sutra-prod.cloudfunctions.net/partnerApi/v0/' + PARTNER_ID
 const AUTH = { 'Authorization': 'Bearer ' + API_KEY }
 
-console.log(`🏋️  Arketa sync — ${isCPH ? 'København (CPH)' : 'New York (NYC)'}`)
+console.log(`🏋️  Arketa sync — ${isCPH ? 'København (CPH)' : 'New York (NYC)'} — ${type}`)
 
 async function fetchAll(path) {
   let items = [], cursor = null, page = 1
@@ -37,46 +38,50 @@ async function upsertBatch(table, items) {
     const batch = items.slice(i, i + 500)
     const { error } = await supabase.from(table).upsert(batch, { onConflict: 'id' })
     if (error) console.log('⚠️  Fejl: ' + error.message)
+    else process.stdout.write('\r  Gemt ' + Math.min(i + 500, items.length) + '/' + items.length + '...')
   }
+  console.log('')
 }
 
 async function main() {
-  // Klienter
-  console.log('\n👥 Henter klienter...')
-  const clients = await fetchAll('/clients')
-  console.log(`   ${clients.length} klienter hentet`)
-  await upsertBatch('arketa_clients', clients.map(c => ({
-    id: c.id,
-    first_name: c.first_name,
-    last_name: c.last_name,
-    email: c.email,
-    phone: c.phone,
-    date_of_birth: c.date_of_birth ? new Date(c.date_of_birth).toISOString().split('T')[0] : null,
-    gender: c.gender,
-    removed: c.removed || false,
-    created_at: c.created_at,
-    location_id: LOCATION_ID,
-  })))
-  console.log(`   ✅ Klienter gemt`)
+  if (type === 'clients' || type === 'all') {
+    console.log('\n👥 Henter klienter...')
+    const clients = await fetchAll('/clients')
+    console.log(`   ${clients.length} klienter hentet`)
+    await upsertBatch('arketa_clients', clients.map(c => ({
+      id: c.id,
+      first_name: c.first_name,
+      last_name: c.last_name,
+      email: c.email,
+      phone: c.phone,
+      date_of_birth: c.date_of_birth ? new Date(c.date_of_birth).toISOString().split('T')[0] : null,
+      gender: c.gender,
+      removed: c.removed || false,
+      created_at: c.created_at,
+      location_id: LOCATION_ID,
+    })))
+    console.log(`   ✅ Klienter gemt`)
+  }
 
-  // Køb
-  console.log('\n🛒 Henter køb...')
-  const purchases = await fetchAll('/purchases')
-  console.log(`   ${purchases.length} køb hentet`)
-  await upsertBatch('arketa_purchases', purchases.map(p => ({
-    id: p.id,
-    client_id: p.client_id,
-    offering_id: p.offering_id,
-    name: p.name,
-    type: p.type,
-    status: p.status,
-    price: p.price,
-    start_date: p.start_date,
-    end_date: p.end_date,
-    remaining_uses: p.remaining_uses,
-    location_id: LOCATION_ID,
-  })))
-  console.log(`   ✅ Køb gemt`)
+  if (type === 'purchases' || type === 'all') {
+    console.log('\n🛒 Henter køb...')
+    const purchases = await fetchAll('/purchases')
+    console.log(`   ${purchases.length} køb hentet`)
+    await upsertBatch('arketa_purchases', purchases.map(p => ({
+      id: p.id,
+      client_id: p.client_id,
+      offering_id: p.offering_id,
+      name: p.name,
+      type: p.type,
+      status: p.status,
+      price: p.price,
+      start_date: p.start_date,
+      end_date: p.end_date,
+      remaining_uses: p.remaining_uses,
+      location_id: LOCATION_ID,
+    })))
+    console.log(`   ✅ Køb gemt`)
+  }
 
   console.log('\n✅ Færdig!')
 }
