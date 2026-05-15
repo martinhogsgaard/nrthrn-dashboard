@@ -111,6 +111,8 @@ export async function GET(request: Request) {
         instructor_profile_id: s.relationships?.employee_public_profiles?.data?.[0]?.id || null,
         capacity: s.attributes.capacity || 0,
         participants: s.attributes.standard_reservation_user_count || 0,
+        is_cancelled: s.attributes.cancellation_datetime !== null,
+        cancellation_datetime: s.attributes.cancellation_datetime || null,
         location_id: s.relationships?.location?.data?.id || '48718',
         updated_at: new Date().toISOString(),
       }
