@@ -6,53 +6,39 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!
 )
 
+function getYesterday() {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return d.toISOString().split('T')[0]
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const location = searchParams.get('location') || '48718'
   const now = new Date()
-  const today = now.toISOString().split('T')[0]
+  const yesterday = getYesterday()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-
-  // Hent Bruce sessions denne måned — kun afholdte (dato <= i dag)
-  const { data: sessions } = await supabase
-    .from('sessions_cache')
-    .select('*')
-    .eq('location_id', location)
-    .gte('date', monthStart)
-    .lte('date', today)
-    .gt('bruce_spots', 0)
-    .order('date', { ascending: false })
-
-  const totalBruceVisits = sessions?.reduce((s, x) => s + (x.bruce_spots || 0), 0) || 0
-
-  // Hent Bruce rate for denne måned
-  const { data: rateData } = await supabase
-    .from('bruce_rates')
-    .select('*')
-    .eq('month', monthStart)
-    .single()
-
-  const rate = rateData?.rate_per_visit || 95
-  const isEstimated = rateData?.is_estimated ?? true
-  const estimatedRevenue = Math.round(totalBruceVisits * rate)
-
-  // Historik — sidste 6 måneder, kun afholdte sessions
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().split('T')[0]
 
-  const { data: historicSessions } = await supabase
-    .from('sessions_cache')
-    .select('date, bruce_spots')
-    .eq('location_id', location)
-    .gte('date', sixMonthsAgo)
-    .lte('date', today)
-    .gt('bruce_spots', 0)
+  // Hent Bruce sessions — kun til og med i går (verificerede tal)
+  const [
+    { data: sessions },
+    { data: rateData },
+    { data: historicSessions },
+    { data: historicRates },
+  ] = await Promise.all([
+    supabase.from('sessions_cache').select('*').eq('location_id', location).gte('date', monthStart).lte('date', yesterday).gt('bruce_spots', 0).order('date', { ascending: false }),
+    supabase.from('bruce_rates').select('*').eq('month', monthStart).single(),
+    supabase.from('sessions_cache').select('date, bruce_spots').eq('location_id', location).gte('date', sixMonthsAgo).lte('date', yesterday).gt('bruce_spots', 0),
+    supabase.from('bruce_rates').select('*').gte('month', sixMonthsAgo),
+  ])
 
-  const { data: historicRates } = await supabase
-    .from('bruce_rates')
-    .select('*')
-    .gte('month', sixMonthsAgo)
+  const rate = (rateData as any)?.rate_per_visit || 95
+  const isEstimated = (rateData as any)?.is_estimated ?? true
+  const totalBruceVisits = sessions?.reduce((s, x) => s + (x.bruce_spots || 0), 0) || 0
+  const estimatedRevenue = Math.round(totalBruceVisits * rate)
 
-  // Gruppér historik pr. måned
+  // Historik grupperet pr. måned
   const monthlyData: Record<string, { visits: number, rate: number, is_estimated: boolean, revenue: number }> = {}
 
   historicSessions?.forEach(s => {
@@ -73,13 +59,16 @@ export async function GET(request: Request) {
     monthlyData[month].revenue = Math.round(monthlyData[month].visits * monthlyData[month].rate)
   })
 
-  const history = Object.entries(monthlyData).map(([month, d]) => ({
-    month,
-    month_label: new Date(month).toLocaleDateString('da-DK', { month: 'short', year: '2-digit' }),
-    ...d,
-  })).sort((a, b) => a.month.localeCompare(b.month))
+  const history = Object.entries(monthlyData)
+    .map(([month, d]) => ({
+      month,
+      month_label: new Date(month).toLocaleDateString('da-DK', { month: 'short', year: '2-digit' }),
+      ...d,
+    }))
+    .sort((a, b) => a.month.localeCompare(b.month))
 
   return NextResponse.json({
+    data_until: yesterday,
     current_month: {
       month: monthStart,
       visits: totalBruceVisits,
@@ -105,13 +94,7 @@ export async function POST(request: Request) {
 
   const { data, error } = await supabase
     .from('bruce_rates')
-    .upsert({
-      month,
-      rate_per_visit,
-      is_estimated: false,
-      notes,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'month' })
+    .upsert({ month, rate_per_visit, is_estimated: false, notes, updated_at: new Date().toISOString() }, { onConflict: 'month' })
     .select()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
