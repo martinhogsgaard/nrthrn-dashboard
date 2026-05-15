@@ -47,10 +47,12 @@ interface SplitsData {
 
 function getCurrentMonthRange() {
   const now = new Date()
-  return {
-    start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0],
-    end: now.toISOString().split('T')[0]
-  }
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const start = `${year}-${month}-01`
+  const end = `${year}-${month}-${day}`
+  return { start, end }
 }
 
 export default function SplitsPage() {
