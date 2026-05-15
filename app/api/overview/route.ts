@@ -86,6 +86,9 @@ export async function GET(request: Request) {
   const totalSales = Math.round((orders || []).reduce((s, o) => s + Number(o.total), 0))
   const ordersOver30 = (orders || []).filter(o => !o.summary?.includes('under 30')).reduce((s, o) => s + Number(o.total), 0)
 
+  // Udstyrssalg
+  const equipmentRevenue = Math.round((equipmentSales || []).reduce((s, r) => s + (Number(r.sale_price) * r.quantity), 0))
+
   // Split%
   const totalOver30 = mrrOver30 + mrrOther + ordersOver30 + bruceRevenue + equipmentRevenue
   const totalRevenue = totalMRR + totalSales + bruceRevenue + equipmentRevenue
