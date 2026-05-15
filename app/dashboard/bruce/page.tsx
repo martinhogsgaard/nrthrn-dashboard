@@ -21,6 +21,7 @@ interface BruceMonth {
 }
 
 interface BruceData {
+  data_until: string
   current_month: {
     month: string
     visits: number
@@ -71,10 +72,20 @@ export default function BrucePage() {
   if (loading || !data) return <div style={{ padding: 40, color: '#8a85a0', textAlign: 'center' }}>Henter Bruce data...</div>
 
   const maxRevenue = Math.max(...data.history.map(h => h.revenue), 1)
+  const dataUntilFormatted = data.data_until
+    ? new Date(data.data_until).toLocaleDateString('da-DK', { day: 'numeric', month: 'long', year: 'numeric' })
+    : null
 
   return (
     <div>
-      <SecLabel>Bruce — København</SecLabel>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+        <SecLabel>Bruce — København</SecLabel>
+        {dataUntilFormatted && (
+          <div style={{ fontSize: 11, color: '#8a85a0', background: '#f8f7fc', border: '1px solid #e4e0f0', borderRadius: 20, padding: '4px 12px' }}>
+            Data til og med {dataUntilFormatted}
+          </div>
+        )}
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
         {[
@@ -178,7 +189,7 @@ export default function BrucePage() {
               </thead>
               <tbody>
                 {data.sessions.map((s, i) => {
-                 const pct = s.total_participants > 0 ? Math.round(s.bruce_spots / s.total_participants * 100) : 0
+                  const pct = s.total_participants > 0 ? Math.round(s.bruce_spots / s.total_participants * 100) : 0
                   return (
                     <tr key={i} style={{ borderBottom: '1px solid #f0eef8' }}>
                       <td style={{ padding: '8px 12px', color: '#8a85a0' }}>{s.date}</td>
