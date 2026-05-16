@@ -7,11 +7,9 @@ interface MonthData {
   month: string
   cph_revenue: number
   nyc_revenue: number
-  total_revenue: number
   cph_purchases: number
   nyc_purchases: number
   total_purchases: number
-  products: { location: string, product: string, type: string, revenue: number, purchases: number }[]
 }
 
 interface TopProduct {
@@ -23,16 +21,26 @@ interface TopProduct {
   purchases: number
 }
 
+function monthLabel(m: string) {
+  const d = new Date(m + '-01')
+  return d.toLocaleDateString('da-DK', { month: 'short', year: '2-digit' })
+}
+
+function formatUSD(val: number) {
+  return '$' + Math.round(val).toLocaleString('en-US')
+}
+
 export default function AnalyticsPage() {
   const [months, setMonths] = useState<MonthData[]>([])
   const [topProducts, setTopProducts] = useState<TopProduct[]>([])
   const [loading, setLoading] = useState(true)
-  const [location, setLocation] = useState('all')
+  const [location, setLocation] = useState<'all' | 'cph' | 'nyc'>('all')
   const [view, setView] = useState<'revenue' | 'purchases'>('revenue')
 
   useEffect(() => {
     setLoading(true)
-    fetch(`/api/analytics?location=${location}`)
+    const locParam = location === 'cph' ? '48718' : location === 'nyc' ? '48717' : 'all'
+    fetch(`/api/analytics?location=${locParam}`)
       .then(r => r.json())
       .then(d => {
         setMonths(d.months || [])
@@ -41,30 +49,33 @@ export default function AnalyticsPage() {
       })
   }, [location])
 
-  const maxRevenue = Math.max(...months.map(m => m.total_revenue), 1)
-  const maxPurchases = Math.max(...months.map(m => m.total_purchases), 1)
+  const showCPH = location === 'all' || location === 'cph'
+  const showNYC = location === 'all' || location === 'nyc'
 
-  const totalRevenue = months.reduce((s, m) => s + m.total_revenue, 0)
+  const totalCPH = months.reduce((s, m) => s + m.cph_revenue, 0)
+  const totalNYC = months.reduce((s, m) => s + m.nyc_revenue, 0)
   const totalPurchases = months.reduce((s, m) => s + m.total_purchases, 0)
-  const cphRevenue = months.reduce((s, m) => s + m.cph_revenue, 0)
-  const nycRevenue = months.reduce((s, m) => s + m.nyc_revenue, 0)
 
-  function monthLabel(m: string) {
-    const d = new Date(m + '-01')
-    return d.toLocaleDateString('da-DK', { month: 'short', year: '2-digit' })
-  }
+  // Max for graf — separat for CPH og NYC da de er i forskellige valutaer
+  const maxCPH = Math.max(...months.map(m => m.cph_revenue), 1)
+  const maxNYC = Math.max(...months.map(m => m.nyc_revenue), 1)
+  const maxPurchasesCPH = Math.max(...months.map(m => m.cph_purchases), 1)
+  const maxPurchasesNYC = Math.max(...months.map(m => m.nyc_purchases), 1)
+
+  const currentMonth = new Date().toISOString().slice(0, 7)
+  const GRAPH_HEIGHT = 120
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <SecLabel>Historisk analyse — Arketa + MT</SecLabel>
         <div style={{ display: 'flex', gap: 8 }}>
           {[
             { val: 'all', label: 'Begge' },
-            { val: '48718', label: 'CPH' },
-            { val: '48717', label: 'NYC' },
+            { val: 'cph', label: 'København' },
+            { val: 'nyc', label: 'New York' },
           ].map(l => (
-            <button key={l.val} onClick={() => setLocation(l.val)}
+            <button key={l.val} onClick={() => setLocation(l.val as any)}
               style={{ padding: '6px 16px', borderRadius: 20, border: '1px solid #e4e0f0', fontSize: 11, fontFamily: 'Inter, sans-serif', fontWeight: 600, cursor: 'pointer', background: location === l.val ? '#1a1228' : '#fff', color: location === l.val ? '#fff' : '#1a1520' }}>
               {l.label}
             </button>
@@ -73,19 +84,26 @@ export default function AnalyticsPage() {
       </div>
 
       {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
-        {[
-          { label: 'Total omsætning', val: formatDKK(totalRevenue), sub: 'Arketa + MT kombineret' },
-          { label: 'CPH omsætning', val: formatDKK(cphRevenue), sub: 'feb 2024 → nu', color: '#6b5ca5' },
-          { label: 'NYC omsætning', val: formatDKK(nycRevenue), sub: 'okt 2025 → nu', color: '#2e8b6a' },
-          { label: 'Total transaktioner', val: totalPurchases.toLocaleString('da-DK'), sub: 'Alle køb og abonnementer' },
-        ].map((k: any, i) => (
-          <div key={i} style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: '18px 16px', borderTop: `3px solid ${k.color || '#e4e0f0'}` }}>
-            <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 10 }}>{k.label}</div>
-            <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 26, fontWeight: 700, color: k.color || '#1a1520', lineHeight: 1 }}>{k.val}</div>
-            <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 6 }}>{k.sub}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${showCPH && showNYC ? 3 : 2},1fr)`, gap: 12, marginBottom: 20 }}>
+        {showCPH && (
+          <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: '18px 16px', borderTop: '3px solid #6b5ca5' }}>
+            <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 10 }}>CPH Omsætning</div>
+            <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 26, fontWeight: 700, color: '#6b5ca5', lineHeight: 1 }}>{formatDKK(totalCPH)}</div>
+            <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 6 }}>feb 2024 → nu · DKK</div>
           </div>
-        ))}
+        )}
+        {showNYC && (
+          <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: '18px 16px', borderTop: '3px solid #2e8b6a' }}>
+            <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 10 }}>NYC Omsætning</div>
+            <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 26, fontWeight: 700, color: '#2e8b6a', lineHeight: 1 }}>{formatUSD(totalNYC)}</div>
+            <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 6 }}>okt 2025 → nu · USD</div>
+          </div>
+        )}
+        <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: '18px 16px', borderTop: '3px solid #e4e0f0' }}>
+          <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 10 }}>Total transaktioner</div>
+          <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 26, fontWeight: 700, color: '#1a1520', lineHeight: 1 }}>{totalPurchases.toLocaleString('da-DK')}</div>
+          <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 6 }}>Alle køb og abonnementer</div>
+        </div>
       </div>
 
       {loading ? (
@@ -105,45 +123,52 @@ export default function AnalyticsPage() {
                 ))}
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 120, overflowX: 'auto' }}>
-              {months.map((m, i) => {
-                const val = view === 'revenue' ? m.total_revenue : m.total_purchases
-                const max = view === 'revenue' ? maxRevenue : maxPurchases
-                const cphVal = view === 'revenue' ? m.cph_revenue : m.cph_purchases
-                const nycVal = view === 'revenue' ? m.nyc_revenue : m.nyc_purchases
-                const height = Math.max(Math.round(val / max * 100), 2)
-                const cphHeight = val > 0 ? Math.round(cphVal / val * height) : 0
-                const nycHeight = height - cphHeight
-                const isCurrent = m.month === new Date().toISOString().slice(0, 7)
-                return (
-                  <div key={i} style={{ flex: '0 0 auto', width: 32, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                    <div style={{ fontSize: 8, color: '#8a85a0', marginBottom: 2 }}>
-                      {view === 'revenue' ? Math.round(val / 1000) + 'k' : val}
+
+            <div style={{ overflowX: 'auto' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: GRAPH_HEIGHT + 20, minWidth: months.length * 44 }}>
+                {months.map((m, i) => {
+                  const cphVal = view === 'revenue' ? m.cph_revenue : m.cph_purchases
+                  const nycVal = view === 'revenue' ? m.nyc_revenue : m.nyc_purchases
+                  const cphMax = view === 'revenue' ? maxCPH : maxPurchasesCPH
+                  const nycMax = view === 'revenue' ? maxNYC : maxPurchasesNYC
+                  // Normaliser begge mod deres egne max så de er sammenlignelige visuelt
+                  const cphH = Math.max(Math.round(cphVal / cphMax * GRAPH_HEIGHT), cphVal > 0 ? 2 : 0)
+                  const nycH = Math.max(Math.round(nycVal / nycMax * GRAPH_HEIGHT), nycVal > 0 ? 2 : 0)
+                  const isCurrent = m.month === currentMonth
+
+                  return (
+                    <div key={i} style={{ flex: '0 0 auto', width: 40, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: GRAPH_HEIGHT }}>
+                        {showCPH && cphVal > 0 && (
+                          <div style={{ width: showNYC ? 16 : 28, height: cphH, background: isCurrent ? '#8b7bc5' : '#6b5ca5', borderRadius: '3px 3px 0 0' }} title={view === 'revenue' ? formatDKK(cphVal) : String(cphVal)} />
+                        )}
+                        {showNYC && nycVal > 0 && (
+                          <div style={{ width: showCPH ? 16 : 28, height: nycH, background: isCurrent ? '#5abd9a' : '#2e8b6a', borderRadius: '3px 3px 0 0' }} title={view === 'revenue' ? formatUSD(nycVal) : String(nycVal)} />
+                        )}
+                      </div>
+                      <div style={{ fontSize: 8, color: isCurrent ? '#6b5ca5' : '#8a85a0', fontWeight: isCurrent ? 700 : 400, marginTop: 4, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        {monthLabel(m.month)}
+                      </div>
                     </div>
-                    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                      <div style={{ width: '100%', height: cphHeight + 'px', background: isCurrent ? '#8b7bc5' : '#6b5ca5', borderRadius: nycVal === 0 ? '3px 3px 0 0' : '0' }} />
-                      {nycVal > 0 && <div style={{ width: '100%', height: nycHeight + 'px', background: isCurrent ? '#5abd9a' : '#2e8b6a', borderRadius: '3px 3px 0 0' }} />}
-                    </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: 4, marginTop: 4, overflowX: 'auto' }}>
-              {months.map((m, i) => (
-                <div key={i} style={{ flex: '0 0 auto', width: 32, textAlign: 'center', fontSize: 8, color: m.month === new Date().toISOString().slice(0, 7) ? '#6b5ca5' : '#8a85a0', fontWeight: m.month === new Date().toISOString().slice(0, 7) ? 700 : 400 }}>
-                  {monthLabel(m.month)}
-                </div>
-              ))}
-            </div>
+
             <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <div style={{ width: 10, height: 10, borderRadius: 2, background: '#6b5ca5' }} />
-                <span style={{ fontSize: 10, color: '#8a85a0' }}>CPH</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <div style={{ width: 10, height: 10, borderRadius: 2, background: '#2e8b6a' }} />
-                <span style={{ fontSize: 10, color: '#8a85a0' }}>NYC</span>
-              </div>
+              {showCPH && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 2, background: '#6b5ca5' }} />
+                  <span style={{ fontSize: 10, color: '#8a85a0' }}>CPH (DKK)</span>
+                </div>
+              )}
+              {showNYC && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 2, background: '#2e8b6a' }} />
+                  <span style={{ fontSize: 10, color: '#8a85a0' }}>NYC (USD)</span>
+                </div>
+              )}
+              <span style={{ fontSize: 10, color: '#8a85a0', marginLeft: 8 }}>* Søjlehøjde normaliseret pr. lokation — DKK og USD kan ikke sammenlignes direkte</span>
             </div>
           </div>
 
@@ -156,18 +181,18 @@ export default function AnalyticsPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: '#f8f7fc' }}>
-                    {['Måned', 'CPH', 'NYC', 'Total', 'Køb'].map(h => (
-                      <th key={h} style={{ fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #e4e0f0' }}>{h}</th>
-                    ))}
+                    <th style={{ fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #e4e0f0' }}>Måned</th>
+                    {showCPH && <th style={{ fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700, padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #e4e0f0' }}>CPH (DKK)</th>}
+                    {showNYC && <th style={{ fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: '#2e8b6a', fontWeight: 700, padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #e4e0f0' }}>NYC (USD)</th>}
+                    <th style={{ fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #e4e0f0' }}>Køb</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {[...months].reverse().slice(0, 15).map((m, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #f0eef8', background: m.month === new Date().toISOString().slice(0, 7) ? '#f8f7fc' : 'transparent' }}>
-                      <td style={{ padding: '8px 12px', fontWeight: m.month === new Date().toISOString().slice(0, 7) ? 700 : 400 }}>{monthLabel(m.month)}</td>
-                      <td style={{ padding: '8px 12px', color: '#6b5ca5', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 14, fontWeight: 700 }}>{m.cph_revenue > 0 ? formatDKK(m.cph_revenue) : '—'}</td>
-                      <td style={{ padding: '8px 12px', color: '#2e8b6a', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 14, fontWeight: 700 }}>{m.nyc_revenue > 0 ? '$' + Math.round(m.nyc_revenue).toLocaleString('en-US') : '—'}</td>
-                      <td style={{ padding: '8px 12px', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 14, fontWeight: 700 }}>{formatDKK(m.total_revenue)}</td>
+                  {[...months].reverse().map((m, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid #f0eef8', background: m.month === currentMonth ? '#f8f7fc' : 'transparent' }}>
+                      <td style={{ padding: '8px 12px', fontWeight: m.month === currentMonth ? 700 : 400 }}>{monthLabel(m.month)}</td>
+                      {showCPH && <td style={{ padding: '8px 12px', color: '#6b5ca5', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 14, fontWeight: 700 }}>{m.cph_revenue > 0 ? formatDKK(m.cph_revenue) : '—'}</td>}
+                      {showNYC && <td style={{ padding: '8px 12px', color: '#2e8b6a', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 14, fontWeight: 700 }}>{m.nyc_revenue > 0 ? formatUSD(m.nyc_revenue) : '—'}</td>}
                       <td style={{ padding: '8px 12px', color: '#8a85a0' }}>{m.total_purchases}</td>
                     </tr>
                   ))}
@@ -183,7 +208,7 @@ export default function AnalyticsPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: '#f8f7fc' }}>
-                    {['Produkt', 'Lokation', 'Køb', 'Omsætning'].map(h => (
+                    {['Produkt', 'Lok.', 'Køb', 'Omsætning'].map(h => (
                       <th key={h} style={{ fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #e4e0f0' }}>{h}</th>
                     ))}
                   </tr>
@@ -198,8 +223,8 @@ export default function AnalyticsPage() {
                         </span>
                       </td>
                       <td style={{ padding: '8px 12px', color: '#8a85a0' }}>{p.purchases}</td>
-                      <td style={{ padding: '8px 12px', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 14, fontWeight: 700 }}>
-                        {p.revenue > 0 ? (p.location_id === '48718' ? formatDKK(p.revenue) : '$' + Math.round(p.revenue).toLocaleString('en-US')) : '—'}
+                      <td style={{ padding: '8px 12px', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 14, fontWeight: 700, color: p.location_id === '48718' ? '#6b5ca5' : '#2e8b6a' }}>
+                        {p.revenue > 0 ? (p.location_id === '48718' ? formatDKK(p.revenue) : formatUSD(p.revenue)) : '—'}
                       </td>
                     </tr>
                   ))}
