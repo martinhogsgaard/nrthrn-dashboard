@@ -30,79 +30,98 @@ function formatUSD(val: number) {
   return '$' + Math.round(val).toLocaleString('en-US')
 }
 
+function BarChart({ months, valueKey, maxVal, color, formatVal }: {
+  months: MonthData[]
+  valueKey: 'cph_revenue' | 'nyc_revenue' | 'cph_purchases' | 'nyc_purchases'
+  maxVal: number
+  color: string
+  formatVal: (v: number) => string
+}) {
+  const GRAPH_HEIGHT = 100
+  const currentMonth = new Date().toISOString().slice(0, 7)
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: GRAPH_HEIGHT + 32, minWidth: months.length * 36 }}>
+        {months.map((m, i) => {
+          const val = m[valueKey] as number
+          const h = Math.max(Math.round(val / maxVal * GRAPH_HEIGHT), val > 0 ? 2 : 0)
+          const isCurrent = m.month === currentMonth
+          return (
+            <div key={i} style={{ flex: '0 0 auto', width: 32, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div style={{ fontSize: 8, color: '#8a85a0', marginBottom: 2, height: 12 }}>
+                {val > 0 ? (val >= 1000 ? Math.round(val / 1000) + 'k' : val) : ''}
+              </div>
+              <div style={{ width: '100%', height: h, background: isCurrent ? color + 'aa' : color, borderRadius: '3px 3px 0 0', minHeight: val > 0 ? 2 : 0 }} title={formatVal(val)} />
+              <div style={{ fontSize: 8, color: isCurrent ? color : '#8a85a0', fontWeight: isCurrent ? 700 : 400, marginTop: 4, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                {monthLabel(m.month)}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function AnalyticsPage() {
   const [months, setMonths] = useState<MonthData[]>([])
   const [topProducts, setTopProducts] = useState<TopProduct[]>([])
   const [loading, setLoading] = useState(true)
-  const [location, setLocation] = useState<'all' | 'cph' | 'nyc'>('all')
   const [view, setView] = useState<'revenue' | 'purchases'>('revenue')
 
   useEffect(() => {
     setLoading(true)
-    const locParam = location === 'cph' ? '48718' : location === 'nyc' ? '48717' : 'all'
-    fetch(`/api/analytics?location=${locParam}`)
+    fetch('/api/analytics?location=all')
       .then(r => r.json())
       .then(d => {
         setMonths(d.months || [])
         setTopProducts(d.top_products || [])
         setLoading(false)
       })
-  }, [location])
-
-  const showCPH = location === 'all' || location === 'cph'
-  const showNYC = location === 'all' || location === 'nyc'
+  }, [])
 
   const totalCPH = months.reduce((s, m) => s + m.cph_revenue, 0)
   const totalNYC = months.reduce((s, m) => s + m.nyc_revenue, 0)
   const totalPurchases = months.reduce((s, m) => s + m.total_purchases, 0)
 
-  // Max for graf — separat for CPH og NYC da de er i forskellige valutaer
-  const maxCPH = Math.max(...months.map(m => m.cph_revenue), 1)
-  const maxNYC = Math.max(...months.map(m => m.nyc_revenue), 1)
-  const maxPurchasesCPH = Math.max(...months.map(m => m.cph_purchases), 1)
-  const maxPurchasesNYC = Math.max(...months.map(m => m.nyc_purchases), 1)
+  const maxCPHRev = Math.max(...months.map(m => m.cph_revenue), 1)
+  const maxNYCRev = Math.max(...months.map(m => m.nyc_revenue), 1)
+  const maxCPHPur = Math.max(...months.map(m => m.cph_purchases), 1)
+  const maxNYCPur = Math.max(...months.map(m => m.nyc_purchases), 1)
 
   const currentMonth = new Date().toISOString().slice(0, 7)
-  const GRAPH_HEIGHT = 120
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <SecLabel>Historisk analyse — Arketa + MT</SecLabel>
+        <SecLabel>Historisk analyse — Arketa + MT · okt 2025 →</SecLabel>
         <div style={{ display: 'flex', gap: 8 }}>
-          {[
-            { val: 'all', label: 'Begge' },
-            { val: 'cph', label: 'København' },
-            { val: 'nyc', label: 'New York' },
-          ].map(l => (
-            <button key={l.val} onClick={() => setLocation(l.val as any)}
-              style={{ padding: '6px 16px', borderRadius: 20, border: '1px solid #e4e0f0', fontSize: 11, fontFamily: 'Inter, sans-serif', fontWeight: 600, cursor: 'pointer', background: location === l.val ? '#1a1228' : '#fff', color: location === l.val ? '#fff' : '#1a1520' }}>
-              {l.label}
+          {[{ val: 'revenue', label: 'Omsætning' }, { val: 'purchases', label: 'Transaktioner' }].map(v => (
+            <button key={v.val} onClick={() => setView(v.val as any)}
+              style={{ padding: '6px 16px', borderRadius: 20, border: '1px solid #e4e0f0', fontSize: 11, fontFamily: 'Inter, sans-serif', fontWeight: 600, cursor: 'pointer', background: view === v.val ? '#1a1228' : '#fff', color: view === v.val ? '#fff' : '#1a1520' }}>
+              {v.label}
             </button>
           ))}
         </div>
       </div>
 
       {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${showCPH && showNYC ? 3 : 2},1fr)`, gap: 12, marginBottom: 20 }}>
-        {showCPH && (
-          <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: '18px 16px', borderTop: '3px solid #6b5ca5' }}>
-            <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 10 }}>CPH Omsætning</div>
-            <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 26, fontWeight: 700, color: '#6b5ca5', lineHeight: 1 }}>{formatDKK(totalCPH)}</div>
-            <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 6 }}>feb 2024 → nu · DKK</div>
-          </div>
-        )}
-        {showNYC && (
-          <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: '18px 16px', borderTop: '3px solid #2e8b6a' }}>
-            <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 10 }}>NYC Omsætning</div>
-            <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 26, fontWeight: 700, color: '#2e8b6a', lineHeight: 1 }}>{formatUSD(totalNYC)}</div>
-            <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 6 }}>okt 2025 → nu · USD</div>
-          </div>
-        )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 20 }}>
+        <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: '18px 16px', borderTop: '3px solid #6b5ca5' }}>
+          <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 10 }}>CPH Omsætning</div>
+          <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 26, fontWeight: 700, color: '#6b5ca5', lineHeight: 1 }}>{formatDKK(totalCPH)}</div>
+          <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 6 }}>okt 2025 → nu · DKK</div>
+        </div>
+        <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: '18px 16px', borderTop: '3px solid #2e8b6a' }}>
+          <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 10 }}>NYC Omsætning</div>
+          <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 26, fontWeight: 700, color: '#2e8b6a', lineHeight: 1 }}>{formatUSD(totalNYC)}</div>
+          <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 6 }}>okt 2025 → nu · USD</div>
+        </div>
         <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: '18px 16px', borderTop: '3px solid #e4e0f0' }}>
           <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 10 }}>Total transaktioner</div>
           <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 26, fontWeight: 700, color: '#1a1520', lineHeight: 1 }}>{totalPurchases.toLocaleString('da-DK')}</div>
-          <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 6 }}>Alle køb og abonnementer</div>
+          <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 6 }}>Begge lokationer</div>
         </div>
       </div>
 
@@ -110,65 +129,36 @@ export default function AnalyticsPage() {
         <div style={{ padding: 40, color: '#8a85a0', textAlign: 'center' }}>Henter historisk data...</div>
       ) : (
         <>
-          {/* Månedlig graf */}
-          <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24, marginBottom: 20 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <div style={{ fontSize: 9, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700 }}>Månedlig udvikling</div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {[{ val: 'revenue', label: 'Omsætning' }, { val: 'purchases', label: 'Transaktioner' }].map(v => (
-                  <button key={v.val} onClick={() => setView(v.val as any)}
-                    style={{ padding: '4px 12px', borderRadius: 16, border: '1px solid #e4e0f0', fontSize: 10, fontFamily: 'Inter, sans-serif', cursor: 'pointer', background: view === v.val ? '#6b5ca5' : '#fff', color: view === v.val ? '#fff' : '#8a85a0' }}>
-                    {v.label}
-                  </button>
-                ))}
+          {/* To separate grafer */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+            {/* CPH graf */}
+            <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                <div style={{ width: 10, height: 10, borderRadius: 2, background: '#6b5ca5' }} />
+                <div style={{ fontSize: 9, letterSpacing: '.16em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700 }}>København — DKK</div>
               </div>
+              <BarChart
+                months={months}
+                valueKey={view === 'revenue' ? 'cph_revenue' : 'cph_purchases'}
+                maxVal={view === 'revenue' ? maxCPHRev : maxCPHPur}
+                color='#6b5ca5'
+                formatVal={v => formatDKK(v)}
+              />
             </div>
 
-            <div style={{ overflowX: 'auto' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: GRAPH_HEIGHT + 20, minWidth: months.length * 44 }}>
-                {months.map((m, i) => {
-                  const cphVal = view === 'revenue' ? m.cph_revenue : m.cph_purchases
-                  const nycVal = view === 'revenue' ? m.nyc_revenue : m.nyc_purchases
-                  const cphMax = view === 'revenue' ? maxCPH : maxPurchasesCPH
-                  const nycMax = view === 'revenue' ? maxNYC : maxPurchasesNYC
-                  // Normaliser begge mod deres egne max så de er sammenlignelige visuelt
-                  const cphH = Math.max(Math.round(cphVal / cphMax * GRAPH_HEIGHT), cphVal > 0 ? 2 : 0)
-                  const nycH = Math.max(Math.round(nycVal / nycMax * GRAPH_HEIGHT), nycVal > 0 ? 2 : 0)
-                  const isCurrent = m.month === currentMonth
-
-                  return (
-                    <div key={i} style={{ flex: '0 0 auto', width: 40, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: GRAPH_HEIGHT }}>
-                        {showCPH && cphVal > 0 && (
-                          <div style={{ width: showNYC ? 16 : 28, height: cphH, background: isCurrent ? '#8b7bc5' : '#6b5ca5', borderRadius: '3px 3px 0 0' }} title={view === 'revenue' ? formatDKK(cphVal) : String(cphVal)} />
-                        )}
-                        {showNYC && nycVal > 0 && (
-                          <div style={{ width: showCPH ? 16 : 28, height: nycH, background: isCurrent ? '#5abd9a' : '#2e8b6a', borderRadius: '3px 3px 0 0' }} title={view === 'revenue' ? formatUSD(nycVal) : String(nycVal)} />
-                        )}
-                      </div>
-                      <div style={{ fontSize: 8, color: isCurrent ? '#6b5ca5' : '#8a85a0', fontWeight: isCurrent ? 700 : 400, marginTop: 4, textAlign: 'center', whiteSpace: 'nowrap' }}>
-                        {monthLabel(m.month)}
-                      </div>
-                    </div>
-                  )
-                })}
+            {/* NYC graf */}
+            <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                <div style={{ width: 10, height: 10, borderRadius: 2, background: '#2e8b6a' }} />
+                <div style={{ fontSize: 9, letterSpacing: '.16em', textTransform: 'uppercase', color: '#2e8b6a', fontWeight: 700 }}>New York — USD</div>
               </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
-              {showCPH && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: 2, background: '#6b5ca5' }} />
-                  <span style={{ fontSize: 10, color: '#8a85a0' }}>CPH (DKK)</span>
-                </div>
-              )}
-              {showNYC && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: 2, background: '#2e8b6a' }} />
-                  <span style={{ fontSize: 10, color: '#8a85a0' }}>NYC (USD)</span>
-                </div>
-              )}
-              <span style={{ fontSize: 10, color: '#8a85a0', marginLeft: 8 }}>* Søjlehøjde normaliseret pr. lokation — DKK og USD kan ikke sammenlignes direkte</span>
+              <BarChart
+                months={months}
+                valueKey={view === 'revenue' ? 'nyc_revenue' : 'nyc_purchases'}
+                maxVal={view === 'revenue' ? maxNYCRev : maxNYCPur}
+                color='#2e8b6a'
+                formatVal={v => formatUSD(v)}
+              />
             </div>
           </div>
 
@@ -182,8 +172,8 @@ export default function AnalyticsPage() {
                 <thead>
                   <tr style={{ background: '#f8f7fc' }}>
                     <th style={{ fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #e4e0f0' }}>Måned</th>
-                    {showCPH && <th style={{ fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700, padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #e4e0f0' }}>CPH (DKK)</th>}
-                    {showNYC && <th style={{ fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: '#2e8b6a', fontWeight: 700, padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #e4e0f0' }}>NYC (USD)</th>}
+                    <th style={{ fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700, padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #e4e0f0' }}>CPH (DKK)</th>
+                    <th style={{ fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: '#2e8b6a', fontWeight: 700, padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #e4e0f0' }}>NYC (USD)</th>
                     <th style={{ fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #e4e0f0' }}>Køb</th>
                   </tr>
                 </thead>
@@ -191,8 +181,8 @@ export default function AnalyticsPage() {
                   {[...months].reverse().map((m, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid #f0eef8', background: m.month === currentMonth ? '#f8f7fc' : 'transparent' }}>
                       <td style={{ padding: '8px 12px', fontWeight: m.month === currentMonth ? 700 : 400 }}>{monthLabel(m.month)}</td>
-                      {showCPH && <td style={{ padding: '8px 12px', color: '#6b5ca5', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 14, fontWeight: 700 }}>{m.cph_revenue > 0 ? formatDKK(m.cph_revenue) : '—'}</td>}
-                      {showNYC && <td style={{ padding: '8px 12px', color: '#2e8b6a', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 14, fontWeight: 700 }}>{m.nyc_revenue > 0 ? formatUSD(m.nyc_revenue) : '—'}</td>}
+                      <td style={{ padding: '8px 12px', color: '#6b5ca5', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 14, fontWeight: 700 }}>{m.cph_revenue > 0 ? formatDKK(m.cph_revenue) : '—'}</td>
+                      <td style={{ padding: '8px 12px', color: '#2e8b6a', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 14, fontWeight: 700 }}>{m.nyc_revenue > 0 ? formatUSD(m.nyc_revenue) : '—'}</td>
                       <td style={{ padding: '8px 12px', color: '#8a85a0' }}>{m.total_purchases}</td>
                     </tr>
                   ))}
@@ -203,7 +193,7 @@ export default function AnalyticsPage() {
             {/* Top produkter */}
             <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, overflow: 'hidden' }}>
               <div style={{ padding: '14px 20px', borderBottom: '1px solid #e4e0f0', fontSize: 9, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700 }}>
-                Top produkter — samlet historik
+                Top produkter — okt 2025 →
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
