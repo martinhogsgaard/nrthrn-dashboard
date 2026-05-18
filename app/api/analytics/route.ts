@@ -10,7 +10,7 @@ export async function GET() {
   const [
     { data: revenueData },
     { data: membersData },
-    { data: activeData },
+    { data: activeMembersData },
     { data: ageData },
     { data: packData },
   ] = await Promise.all([
@@ -28,12 +28,14 @@ export async function GET() {
     if (!byMonth[month]) byMonth[month] = {
       month,
       cph_revenue: 0, nyc_revenue: 0,
+      cph_subscription_revenue: 0, nyc_subscription_revenue: 0,
+      cph_pack_revenue: 0, nyc_pack_revenue: 0,
+      cph_intro_revenue: 0, nyc_intro_revenue: 0,
       cph_purchases: 0, nyc_purchases: 0,
       total_purchases: 0,
       cph_members: 0, nyc_members: 0,
       cph_active: 0, nyc_active: 0,
       cph_packs: 0, nyc_packs: 0,
-      cph_pack_revenue: 0, nyc_pack_revenue: 0,
     }
   }
 
@@ -42,14 +44,17 @@ export async function GET() {
     addMonth(month)
     const rev = Number(row.revenue) || 0
     const pur = Number(row.purchases) || 0
-    if (row.location_id === '48718') {
-      byMonth[month].cph_revenue += rev
-      byMonth[month].cph_purchases += pur
-    } else {
-      byMonth[month].nyc_revenue += rev
-      byMonth[month].nyc_purchases += pur
-    }
+    const isCPH = row.location_id === '48718'
+    const prefix = isCPH ? 'cph' : 'nyc'
+
+    byMonth[month][`${prefix}_revenue`] += rev
+    byMonth[month][`${prefix}_purchases`] += pur
     byMonth[month].total_purchases += pur
+
+    // Kategori-opdeling
+    if (row.category === 'subscription') byMonth[month][`${prefix}_subscription_revenue`] += rev
+    else if (row.category === 'intro') byMonth[month][`${prefix}_intro_revenue`] += rev
+    else byMonth[month][`${prefix}_pack_revenue`] += rev
   }
 
   for (const row of membersData || []) {
@@ -59,7 +64,7 @@ export async function GET() {
     else byMonth[month].nyc_members += Number(row.new_members) || 0
   }
 
-  for (const row of activeData || []) {
+  for (const row of activeMembersData || []) {
     const month = row.month.slice(0, 7)
     addMonth(month)
     if (row.location_id === '48718') byMonth[month].cph_active = Number(row.active_members) || 0
@@ -69,17 +74,22 @@ export async function GET() {
   for (const row of packData || []) {
     const month = row.month.slice(0, 7)
     addMonth(month)
-    if (row.location_id === '48718') {
-      byMonth[month].cph_packs = Number(row.packs_sold) || 0
-      byMonth[month].cph_pack_revenue = Math.round(Number(row.revenue) || 0)
-    } else {
-      byMonth[month].nyc_packs = Number(row.packs_sold) || 0
-      byMonth[month].nyc_pack_revenue = Math.round(Number(row.revenue) || 0)
-    }
+    if (row.location_id === '48718') byMonth[month].cph_packs = Number(row.packs_sold) || 0
+    else byMonth[month].nyc_packs = Number(row.packs_sold) || 0
   }
 
   const months = Object.values(byMonth)
-    .map(m => ({ ...m, cph_revenue: Math.round(m.cph_revenue), nyc_revenue: Math.round(m.nyc_revenue) }))
+    .map(m => ({
+      ...m,
+      cph_revenue: Math.round(m.cph_revenue),
+      nyc_revenue: Math.round(m.nyc_revenue),
+      cph_subscription_revenue: Math.round(m.cph_subscription_revenue),
+      nyc_subscription_revenue: Math.round(m.nyc_subscription_revenue),
+      cph_pack_revenue: Math.round(m.cph_pack_revenue),
+      nyc_pack_revenue: Math.round(m.nyc_pack_revenue),
+      cph_intro_revenue: Math.round(m.cph_intro_revenue),
+      nyc_intro_revenue: Math.round(m.nyc_intro_revenue),
+    }))
     .sort((a, b) => a.month.localeCompare(b.month))
 
   // Aldersfordeling
@@ -104,7 +114,7 @@ export async function GET() {
   const productTotals: Record<string, any> = {}
   for (const row of revenueData || []) {
     const key = `${row.location_id}:${row.product}`
-    if (!productTotals[key]) productTotals[key] = { location: row.location, product: row.product, type: row.type, location_id: row.location_id, revenue: 0, purchases: 0 }
+    if (!productTotals[key]) productTotals[key] = { location: row.location, product: row.product, category: row.category, location_id: row.location_id, revenue: 0, purchases: 0 }
     productTotals[key].revenue += Number(row.revenue) || 0
     productTotals[key].purchases += Number(row.purchases) || 0
   }

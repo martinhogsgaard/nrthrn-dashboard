@@ -18,6 +18,10 @@ interface MonthData {
   nyc_packs: number
   cph_pack_revenue: number
   nyc_pack_revenue: number
+  cph_subscription_revenue: number
+  nyc_subscription_revenue: number
+  cph_intro_revenue: number
+  nyc_intro_revenue: number
 }
 
 interface AgeGroup {
@@ -208,6 +212,17 @@ export default function AnalyticsPage() {
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#1a1520', marginBottom: 10, letterSpacing: '.06em', textTransform: 'uppercase' }}>Klipkortsalg</div>
             <BarChart months={months} cphKey="cph_packs" nycKey="nyc_packs" maxCPH={max('cph_packs')} maxNYC={max('nyc_packs')} formatCPH={v => v + ' klipkort'} formatNYC={v => v + ' packs'} />
+          </div>
+
+          {/* Omsætning fordelt */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#1a1520', marginBottom: 10, letterSpacing: '.06em', textTransform: 'uppercase' }}>Abonnementsomsætning</div>
+            <BarChart months={months} cphKey="cph_subscription_revenue" nycKey="nyc_subscription_revenue" maxCPH={max('cph_subscription_revenue')} maxNYC={max('nyc_subscription_revenue')} formatCPH={formatDKK} formatNYC={formatUSD} />
+          </div>
+
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#1a1520', marginBottom: 10, letterSpacing: '.06em', textTransform: 'uppercase' }}>Intro tilbud</div>
+            <BarChart months={months} cphKey="cph_intro_revenue" nycKey="nyc_intro_revenue" maxCPH={max('cph_intro_revenue')} maxNYC={max('nyc_intro_revenue')} formatCPH={formatDKK} formatNYC={formatUSD} />
           </div>
 
           {/* Nye members */}
