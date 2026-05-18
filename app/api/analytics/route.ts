@@ -16,7 +16,7 @@ export async function GET() {
   ] = await Promise.all([
     supabase.from('analytics_monthly').select('*').order('month'),
     supabase.from('analytics_members_monthly').select('*').order('month'),
-    supabase.from('analytics_active_clients').select('*').order('month'),
+    supabase.from('analytics_active_members').select('*').order('month'),
     supabase.from('analytics_age_distribution').select('*'),
     supabase.from('analytics_pack_sales').select('*').order('month'),
   ])
@@ -62,8 +62,8 @@ export async function GET() {
   for (const row of activeData || []) {
     const month = row.month.slice(0, 7)
     addMonth(month)
-    if (row.location_id === '48718') byMonth[month].cph_active = Number(row.active_clients) || 0
-    else byMonth[month].nyc_active = Number(row.active_clients) || 0
+    if (row.location_id === '48718') byMonth[month].cph_active = Number(row.active_members) || 0
+    else byMonth[month].nyc_active = Number(row.active_members) || 0
   }
 
   for (const row of packData || []) {

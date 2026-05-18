@@ -198,10 +198,10 @@ export default function AnalyticsPage() {
             <BarChart months={months} cphKey="cph_revenue" nycKey="nyc_revenue" maxCPH={max('cph_revenue')} maxNYC={max('nyc_revenue')} formatCPH={formatDKK} formatNYC={formatUSD} />
           </div>
 
-          {/* Aktive klienter */}
+          {/* Aktive members */}
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#1a1520', marginBottom: 10, letterSpacing: '.06em', textTransform: 'uppercase' }}>Aktive klienter</div>
-            <BarChart months={months} cphKey="cph_active" nycKey="nyc_active" maxCPH={max('cph_active')} maxNYC={max('nyc_active')} formatCPH={v => v + ' klienter'} formatNYC={v => v + ' clients'} />
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#1a1520', marginBottom: 10, letterSpacing: '.06em', textTransform: 'uppercase' }}>Aktive members</div>
+            <BarChart months={months} cphKey="cph_active" nycKey="nyc_active" maxCPH={max('cph_active')} maxNYC={max('nyc_active')} formatCPH={v => v + ' members'} formatNYC={v => v + ' clients'} />
           </div>
 
           {/* Klipkortsalg */}
