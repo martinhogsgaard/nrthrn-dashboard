@@ -10,33 +10,30 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const location = searchParams.get('location') || 'all'
 
-  // Hent monthly analytics fra view
-  let query = supabase
-    .from('analytics_monthly')
-    .select('*')
-    .order('month', { ascending: true })
+  // Hent omsætning
+  let revenueQuery = supabase.from('analytics_monthly').select('*').order('month', { ascending: true })
+  if (location !== 'all') revenueQuery = revenueQuery.eq('location_id', location)
+  const { data: revenueData, error: revenueError } = await revenueQuery
+  if (revenueError) return NextResponse.json({ error: revenueError.message }, { status: 500 })
 
-  if (location !== 'all') {
-    query = query.eq('location_id', location)
-  }
+  // Hent members tilvækst
+  let membersQuery = supabase.from('analytics_members_monthly').select('*').order('month', { ascending: true })
+  if (location !== 'all') membersQuery = membersQuery.eq('location_id', location)
+  const { data: membersData } = await membersQuery
 
-  const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  // Gruppér pr. måned
+  // Gruppér omsætning pr. måned
   const byMonth: Record<string, any> = {}
-  for (const row of data || []) {
-    const month = row.month.slice(0, 7) // YYYY-MM
+  for (const row of revenueData || []) {
+    const month = row.month.slice(0, 7)
     if (!byMonth[month]) byMonth[month] = {
       month,
-      cph_revenue: 0, nyc_revenue: 0, total_revenue: 0,
-      cph_purchases: 0, nyc_purchases: 0, total_purchases: 0,
-      products: {}
+      cph_revenue: 0, nyc_revenue: 0,
+      cph_purchases: 0, nyc_purchases: 0,
+      total_purchases: 0,
+      cph_members: 0, nyc_members: 0,
     }
-
     const rev = Number(row.revenue) || 0
     const pur = Number(row.purchases) || 0
-
     if (row.location_id === '48718') {
       byMonth[month].cph_revenue += rev
       byMonth[month].cph_purchases += pur
@@ -44,27 +41,30 @@ export async function GET(request: Request) {
       byMonth[month].nyc_revenue += rev
       byMonth[month].nyc_purchases += pur
     }
-    byMonth[month].total_revenue += rev
     byMonth[month].total_purchases += pur
+  }
 
-    // Produktfordeling
-    const key = `${row.location}:${row.product}`
-    if (!byMonth[month].products[key]) byMonth[month].products[key] = { location: row.location, product: row.product, type: row.type, revenue: 0, purchases: 0 }
-    byMonth[month].products[key].revenue += rev
-    byMonth[month].products[key].purchases += pur
+  // Tilføj members tilvækst
+  for (const row of membersData || []) {
+    const month = row.month.slice(0, 7)
+    if (!byMonth[month]) byMonth[month] = {
+      month, cph_revenue: 0, nyc_revenue: 0,
+      cph_purchases: 0, nyc_purchases: 0,
+      total_purchases: 0, cph_members: 0, nyc_members: 0,
+    }
+    if (row.location_id === '48718') byMonth[month].cph_members += Number(row.new_members) || 0
+    else byMonth[month].nyc_members += Number(row.new_members) || 0
   }
 
   const months = Object.values(byMonth).map(m => ({
     ...m,
     cph_revenue: Math.round(m.cph_revenue),
     nyc_revenue: Math.round(m.nyc_revenue),
-    total_revenue: Math.round(m.total_revenue),
-    products: Object.values(m.products).sort((a: any, b: any) => b.revenue - a.revenue),
-  }))
+  })).sort((a, b) => a.month.localeCompare(b.month))
 
-  // Top produkter samlet
+  // Top produkter
   const productTotals: Record<string, any> = {}
-  for (const row of data || []) {
+  for (const row of revenueData || []) {
     const key = `${row.location_id}:${row.product}`
     if (!productTotals[key]) productTotals[key] = { location: row.location, product: row.product, type: row.type, location_id: row.location_id, revenue: 0, purchases: 0 }
     productTotals[key].revenue += Number(row.revenue) || 0
