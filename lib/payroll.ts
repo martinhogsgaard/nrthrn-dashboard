@@ -1,6 +1,4 @@
 // ── LØNBEREGNING ────────────────────────────────────────────
-// Trappebaseret bonusmodel identisk med demo-dashboardet
-// Klar til at modtage data fra Mariana Tek API
 
 export interface SalaryRate {
   rate_per_class: number
@@ -11,6 +9,23 @@ export interface SalaryRate {
   bonus_tier_3: number
   bonus_tier_4: number
   valid_to?: string | null
+}
+
+export interface ClassTypeRule {
+  id: string
+  location_id: string
+  level: string
+  class_type_pattern: string
+  base_rate: number
+  bonus_rules: BonusRule[]
+  notes?: string
+}
+
+export interface BonusRule {
+  from: number
+  to: number
+  rate: number
+  type?: 'per_participant' | 'fully_booked'
 }
 
 export interface Session {
@@ -29,7 +44,6 @@ export interface PayrollResult {
   time_total: number
   bonus_total: number
   subtotal: number
-  // Kun freelance
   is_freelance: boolean
   vat_split_pct?: number
   vat_amount?: number
@@ -37,49 +51,112 @@ export interface PayrollResult {
 }
 
 /**
- * Beregn bonus for én session baseret på trappemodellen
- * Kumulativ — bonus beregnes i hvert interval for sig
+ * Find matching class type rule for a session
+ * Returns null if no rule matches — falls back to legacy SalaryRate
  */
-export function calcSessionBonus(participants: number, rates: SalaryRate): number {
+export function findClassTypeRule(
+  className: string,
+  level: string,
+  rules: ClassTypeRule[]
+): ClassTypeRule | null {
+  if (!rules || rules.length === 0) return null
+
+  const levelRules = rules.filter(r => r.level === level)
+
+  // Find most specific match — try each rule's pattern
+  for (const rule of levelRules) {
+    const patterns = rule.class_type_pattern.split('|')
+    for (const pattern of patterns) {
+      if (className.toLowerCase().includes(pattern.toLowerCase())) {
+        return rule
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Beregn bonus for én session baseret på ClassTypeRule
+ */
+export function calcSessionBonusFromRule(
+  participants: number,
+  rule: ClassTypeRule
+): number {
   let bonus = 0
-  const { bonus_threshold_1, bonus_threshold_2, bonus_threshold_3 } = rates
 
-  // Tier 2: threshold_1+1 til threshold_2
-  if (participants > bonus_threshold_1) {
-    const inTier = Math.min(participants, bonus_threshold_2) - bonus_threshold_1
-    bonus += inTier * rates.bonus_tier_2
-  }
-
-  // Tier 3: threshold_2+1 til threshold_3
-  if (participants > bonus_threshold_2) {
-    const inTier = Math.min(participants, bonus_threshold_3) - bonus_threshold_2
-    bonus += inTier * rates.bonus_tier_3
-  }
-
-  // Tier 4: threshold_3+
-  if (participants > bonus_threshold_3) {
-    const inTier = participants - bonus_threshold_3
-    bonus += inTier * rates.bonus_tier_4
+  for (const br of rule.bonus_rules) {
+    if (br.type === 'fully_booked') {
+      // Fast bonus hvis holdet er fuldt booket (participants >= br.from)
+      if (participants >= br.from) {
+        bonus += br.rate
+      }
+    } else {
+      // Per-deltager bonus i interval [from, to]
+      if (participants >= br.from) {
+        const inTier = Math.min(participants, br.to) - br.from + 1
+        bonus += inTier * br.rate
+      }
+    }
   }
 
   return Math.round(bonus)
 }
 
 /**
- * Beregn samlet løn for en instruktør baseret på sessions
+ * Beregn bonus for én session baseret på legacy SalaryRate (fallback)
+ */
+export function calcSessionBonus(participants: number, rates: SalaryRate): number {
+  let bonus = 0
+  const { bonus_threshold_1, bonus_threshold_2, bonus_threshold_3 } = rates
+
+  if (participants > bonus_threshold_1) {
+    const inTier = Math.min(participants, bonus_threshold_2) - bonus_threshold_1
+    bonus += inTier * rates.bonus_tier_2
+  }
+  if (participants > bonus_threshold_2) {
+    const inTier = Math.min(participants, bonus_threshold_3) - bonus_threshold_2
+    bonus += inTier * rates.bonus_tier_3
+  }
+  if (participants > bonus_threshold_3) {
+    const inTier = participants - bonus_threshold_3
+    bonus += inTier * rates.bonus_tier_4
+  }
+  return Math.round(bonus)
+}
+
+/**
+ * Beregn samlet løn for en instruktør
+ * Bruger ClassTypeRule hvis tilgængelig, ellers legacy SalaryRate
  */
 export function calcPayroll(
   sessions: Session[],
   rates: SalaryRate,
-  isFreelance: boolean
+  isFreelance: boolean,
+  classTypeRules?: ClassTypeRule[],
+  level?: string
 ): PayrollResult {
   const sessionsCount = sessions.length
   const totalParticipants = sessions.reduce((s, x) => s + x.participants, 0)
   const over30 = sessions.reduce((s, x) => s + x.participants_over_30, 0)
   const under30 = sessions.reduce((s, x) => s + x.participants_under_30, 0)
 
-  const timeTotal = sessionsCount * rates.rate_per_class
-  const bonusTotal = sessions.reduce((s, x) => s + calcSessionBonus(x.participants, rates), 0)
+  let timeTotal = 0
+  let bonusTotal = 0
+
+  for (const session of sessions) {
+    const rule = classTypeRules && level
+      ? findClassTypeRule(session.class_name, level, classTypeRules)
+      : null
+
+    if (rule) {
+      timeTotal += rule.base_rate
+      bonusTotal += calcSessionBonusFromRule(session.participants, rule)
+    } else {
+      timeTotal += rates.rate_per_class
+      bonusTotal += calcSessionBonus(session.participants, rates)
+    }
+  }
+
   const subtotal = timeTotal + bonusTotal
 
   const result: PayrollResult = {
@@ -93,8 +170,6 @@ export function calcPayroll(
     is_freelance: isFreelance,
   }
 
-  // Freelance: beregn differentieret moms
-  // Kun over-30 andelen af hele fakturabeløbet er momspligtig
   if (isFreelance && totalParticipants > 0) {
     const vatSplitPct = (over30 / totalParticipants) * 100
     const taxableAmount = subtotal * (over30 / totalParticipants)

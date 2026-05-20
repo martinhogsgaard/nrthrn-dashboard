@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { calcPayroll } from '@/lib/payroll'
+import { calcPayroll, type SalaryRate, type ClassTypeRule } from '@/lib/payroll'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,9 +16,11 @@ export async function GET(request: Request) {
   const [
     { data: instructors, error },
     { data: sessions },
+    { data: classTypeRules },
   ] = await Promise.all([
     supabase.from('instructors').select('*, salary_rates(*)').eq('is_active', true),
     supabase.from('sessions_cache').select('*').eq('location_id', location).gte('date', start).lte('date', end).eq('is_cancelled', false),
+    supabase.from('class_type_rules').select('*').eq('location_id', location),
   ])
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -54,7 +56,13 @@ export async function GET(request: Request) {
       }
     })
 
-    const result = calcPayroll(mappedSessions, activeRate, instructor.employment_type === 'freelance')
+    const result = calcPayroll(
+      mappedSessions,
+      activeRate as SalaryRate,
+      instructor.employment_type === 'freelance',
+      (classTypeRules || []) as ClassTypeRule[],
+      instructor.level
+    )
 
     return {
       instructor: {
