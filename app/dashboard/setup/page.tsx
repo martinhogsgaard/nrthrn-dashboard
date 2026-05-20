@@ -39,6 +39,109 @@ interface SalaryDefaults {
   senior_bonus_tier_4: number
 }
 
+const defaultSalary: SalaryDefaults = {
+  junior_rate: 300, senior_rate: 500,
+  bonus_threshold_1: 8, bonus_threshold_2: 12, bonus_threshold_3: 15,
+  junior_bonus_tier_2: 15, junior_bonus_tier_3: 25, junior_bonus_tier_4: 35,
+  senior_bonus_tier_2: 20, senior_bonus_tier_3: 35, senior_bonus_tier_4: 50,
+}
+
+function SalarySection({ title, currency, settingsKey, defaults }: {
+  title: string
+  currency: 'DKK' | 'USD'
+  settingsKey: string
+  defaults: SalaryDefaults
+}) {
+  const [values, setValues] = useState<SalaryDefaults>(defaults)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => { setValues(defaults) }, [JSON.stringify(defaults)])
+
+  async function save() {
+    setSaving(true)
+    await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: settingsKey, value: values })
+    })
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 3000)
+  }
+
+  const curr = currency === 'USD' ? '$' : 'kr.'
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24, marginTop: 20 }}>
+      <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1520', marginBottom: 4 }}>{title}</div>
+      <div style={{ fontSize: 12, color: '#8a85a0', marginBottom: 20 }}>Standard satser for alle instruktører. Kan overrides pr. instruktør.</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#6b5ca5', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Junior</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[
+              { label: `Timepris pr. hold (${curr})`, key: 'junior_rate' },
+              { label: `Bonus trin 2 ${curr}/del.`, key: 'junior_bonus_tier_2' },
+              { label: `Bonus trin 3 ${curr}/del.`, key: 'junior_bonus_tier_3' },
+              { label: `Bonus trin 4 ${curr}/del.`, key: 'junior_bonus_tier_4' },
+            ].map(f => (
+              <label key={f.key} style={{ fontSize: 12, color: '#4a4560' }}>
+                {f.label}
+                <input type="number" value={values[f.key as keyof SalaryDefaults]}
+                  onChange={e => setValues(p => ({ ...p, [f.key]: Number(e.target.value) }))}
+                  style={{ display: 'block', width: '100%', padding: '6px 10px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }} />
+              </label>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#2e8b6a', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Senior</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[
+              { label: `Timepris pr. hold (${curr})`, key: 'senior_rate' },
+              { label: `Bonus trin 2 ${curr}/del.`, key: 'senior_bonus_tier_2' },
+              { label: `Bonus trin 3 ${curr}/del.`, key: 'senior_bonus_tier_3' },
+              { label: `Bonus trin 4 ${curr}/del.`, key: 'senior_bonus_tier_4' },
+            ].map(f => (
+              <label key={f.key} style={{ fontSize: 12, color: '#4a4560' }}>
+                {f.label}
+                <input type="number" value={values[f.key as keyof SalaryDefaults]}
+                  onChange={e => setValues(p => ({ ...p, [f.key]: Number(e.target.value) }))}
+                  style={{ display: 'block', width: '100%', padding: '6px 10px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }} />
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #e4e0f0' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#8a85a0', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Bonustærskler (deltagere)</div>
+        <div style={{ display: 'flex', gap: 16 }}>
+          {[
+            { label: 'Trin 1 → 2', key: 'bonus_threshold_1' },
+            { label: 'Trin 2 → 3', key: 'bonus_threshold_2' },
+            { label: 'Trin 3 → 4', key: 'bonus_threshold_3' },
+          ].map(t => (
+            <label key={t.key} style={{ fontSize: 12, color: '#4a4560', flex: 1 }}>
+              {t.label}
+              <input type="number" value={values[t.key as keyof SalaryDefaults]}
+                onChange={e => setValues(p => ({ ...p, [t.key]: Number(e.target.value) }))}
+                style={{ display: 'block', width: '100%', padding: '6px 10px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }} />
+            </label>
+          ))}
+        </div>
+      </div>
+      <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button onClick={save} disabled={saving}
+          style={{ background: saving ? '#8b7bc5' : '#6b5ca5', border: 'none', color: '#fff', padding: '9px 24px', borderRadius: 24, cursor: saving ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase' as const }}>
+          {saving ? 'Gemmer...' : 'Gem lønsatser'}
+        </button>
+        {saved && <span style={{ fontSize: 11, color: '#2e8b6a', fontWeight: 500 }}>✓ Gemt</span>}
+      </div>
+    </div>
+  )
+}
+
 export default function SetupPage() {
   const [instructors, setInstructors] = useState<Instructor[]>([])
   const [locations, setLocations] = useState<Location[]>([])
@@ -46,14 +149,8 @@ export default function SetupPage() {
   const [saving, setSaving] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<string | null>(null)
-  const [salaryDefaults, setSalaryDefaults] = useState<SalaryDefaults>({
-    junior_rate: 300, senior_rate: 500,
-    bonus_threshold_1: 8, bonus_threshold_2: 12, bonus_threshold_3: 15,
-    junior_bonus_tier_2: 15, junior_bonus_tier_3: 25, junior_bonus_tier_4: 35,
-    senior_bonus_tier_2: 20, senior_bonus_tier_3: 35, senior_bonus_tier_4: 50,
-  })
-  const [savingSettings, setSavingSettings] = useState(false)
-  const [settingsSaved, setSettingsSaved] = useState(false)
+  const [cphSalary, setCphSalary] = useState<SalaryDefaults>(defaultSalary)
+  const [nycSalary, setNycSalary] = useState<SalaryDefaults>(defaultSalary)
   const [editingSalary, setEditingSalary] = useState<Instructor | null>(null)
   const [salaryOverride, setSalaryOverride] = useState({ rate_per_class: 0, bonus_tier_2: 0, bonus_tier_3: 0, bonus_tier_4: 0 })
   const [savingSalary, setSavingSalary] = useState(false)
@@ -72,33 +169,19 @@ export default function SetupPage() {
     ])
     setInstructors(instrData)
     setLocations(locData)
-    if (settingsData.salary_defaults) setSalaryDefaults(settingsData.salary_defaults)
+    if (settingsData.salary_defaults) setCphSalary(settingsData.salary_defaults)
+    if (settingsData.salary_defaults_nyc) setNycSalary(settingsData.salary_defaults_nyc)
     setLoading(false)
   }
 
   async function syncAll() {
     setSyncing(true)
     setSyncResult(null)
-    const now = new Date()
-    const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
-    const res = await fetch(`/api/sync-cache?start=${start}&end=${end}`)
+    const res = await fetch('/api/sync-cache')
     const data = await res.json()
     setSyncing(false)
-    setSyncResult(`✓ ${data.sessions} · ${data.memberships} · ${data.instructors} · ${data.birthdays}`)
+    setSyncResult(`✓ ${data.sessions} · ${data.memberships} · ${data.instructors}`)
     loadData()
-  }
-
-  async function saveSalaryDefaults() {
-    setSavingSettings(true)
-    await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: 'salary_defaults', value: salaryDefaults })
-    })
-    setSavingSettings(false)
-    setSettingsSaved(true)
-    setTimeout(() => setSettingsSaved(false), 3000)
   }
 
   async function saveSalaryOverride() {
@@ -131,12 +214,14 @@ export default function SetupPage() {
   }
 
   function openSalaryModal(instructor: Instructor) {
+    const isNYC = locations.find(l => l.id === instructor.location_id)?.mariana_tek_location_id === '48717'
+    const defaults = isNYC ? nycSalary : cphSalary
     const existing = instructor.salary_rates?.[0]
     setSalaryOverride({
-      rate_per_class: existing?.rate_per_class || (instructor.level === 'senior' ? salaryDefaults.senior_rate : salaryDefaults.junior_rate),
-      bonus_tier_2: existing?.bonus_tier_2 || (instructor.level === 'senior' ? salaryDefaults.senior_bonus_tier_2 : salaryDefaults.junior_bonus_tier_2),
-      bonus_tier_3: existing?.bonus_tier_3 || (instructor.level === 'senior' ? salaryDefaults.senior_bonus_tier_3 : salaryDefaults.junior_bonus_tier_3),
-      bonus_tier_4: existing?.bonus_tier_4 || (instructor.level === 'senior' ? salaryDefaults.senior_bonus_tier_4 : salaryDefaults.junior_bonus_tier_4),
+      rate_per_class: existing?.rate_per_class || (instructor.level === 'senior' ? defaults.senior_rate : defaults.junior_rate),
+      bonus_tier_2: existing?.bonus_tier_2 || (instructor.level === 'senior' ? defaults.senior_bonus_tier_2 : defaults.junior_bonus_tier_2),
+      bonus_tier_3: existing?.bonus_tier_3 || (instructor.level === 'senior' ? defaults.senior_bonus_tier_3 : defaults.junior_bonus_tier_3),
+      bonus_tier_4: existing?.bonus_tier_4 || (instructor.level === 'senior' ? defaults.senior_bonus_tier_4 : defaults.junior_bonus_tier_4),
     })
     setEditingSalary(instructor)
   }
@@ -149,14 +234,13 @@ export default function SetupPage() {
 
   return (
     <div>
-      <SecLabel>Opsætning</SecLabel>
+      <SecLabel>Personale</SecLabel>
 
-      {/* Én sync knap */}
       <Card>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1520', marginBottom: 4 }}>Opdater hele dashboardet</div>
-            <div style={{ fontSize: 12, color: '#8a85a0' }}>Henter hold, abonnementer, instruktører og fødselsdatoer fra Mariana Tek. Kører automatisk hver morgen kl. 06:00.</div>
+            <div style={{ fontSize: 12, color: '#8a85a0' }}>Henter hold, abonnementer og instruktører fra Mariana Tek. Kører automatisk hver morgen kl. 05:00.</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {syncResult && <span style={{ fontSize: 11, color: '#2e8b6a', fontWeight: 500 }}>{syncResult}</span>}
@@ -168,75 +252,9 @@ export default function SetupPage() {
         </div>
       </Card>
 
-      {/* Globale lønsatser */}
-      <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24, marginTop: 20 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1520', marginBottom: 4 }}>Globale lønsatser</div>
-        <div style={{ fontSize: 12, color: '#8a85a0', marginBottom: 20 }}>Standard satser for alle instruktører. Kan overrides pr. instruktør.</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#6b5ca5', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Junior</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {[
-                { label: 'Timepris pr. hold (kr.)', key: 'junior_rate' },
-                { label: 'Bonus trin 2 (9-12 del.) kr./del.', key: 'junior_bonus_tier_2' },
-                { label: 'Bonus trin 3 (13-15 del.) kr./del.', key: 'junior_bonus_tier_3' },
-                { label: 'Bonus trin 4 (16+ del.) kr./del.', key: 'junior_bonus_tier_4' },
-              ].map(f => (
-                <label key={f.key} style={{ fontSize: 12, color: '#4a4560' }}>
-                  {f.label}
-                  <input type="number" value={salaryDefaults[f.key as keyof SalaryDefaults]}
-                    onChange={e => setSalaryDefaults(p => ({ ...p, [f.key]: Number(e.target.value) }))}
-                    style={{ display: 'block', width: '100%', padding: '6px 10px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }} />
-                </label>
-              ))}
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#2e8b6a', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Senior</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {[
-                { label: 'Timepris pr. hold (kr.)', key: 'senior_rate' },
-                { label: 'Bonus trin 2 (9-12 del.) kr./del.', key: 'senior_bonus_tier_2' },
-                { label: 'Bonus trin 3 (13-15 del.) kr./del.', key: 'senior_bonus_tier_3' },
-                { label: 'Bonus trin 4 (16+ del.) kr./del.', key: 'senior_bonus_tier_4' },
-              ].map(f => (
-                <label key={f.key} style={{ fontSize: 12, color: '#4a4560' }}>
-                  {f.label}
-                  <input type="number" value={salaryDefaults[f.key as keyof SalaryDefaults]}
-                    onChange={e => setSalaryDefaults(p => ({ ...p, [f.key]: Number(e.target.value) }))}
-                    style={{ display: 'block', width: '100%', padding: '6px 10px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }} />
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #e4e0f0' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#8a85a0', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Bonustærskler (deltagere)</div>
-          <div style={{ display: 'flex', gap: 16 }}>
-            {[
-              { label: 'Trin 1 → 2', key: 'bonus_threshold_1' },
-              { label: 'Trin 2 → 3', key: 'bonus_threshold_2' },
-              { label: 'Trin 3 → 4', key: 'bonus_threshold_3' },
-            ].map(t => (
-              <label key={t.key} style={{ fontSize: 12, color: '#4a4560', flex: 1 }}>
-                {t.label}
-                <input type="number" value={salaryDefaults[t.key as keyof SalaryDefaults]}
-                  onChange={e => setSalaryDefaults(p => ({ ...p, [t.key]: Number(e.target.value) }))}
-                  style={{ display: 'block', width: '100%', padding: '6px 10px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }} />
-              </label>
-            ))}
-          </div>
-        </div>
-        <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={saveSalaryDefaults} disabled={savingSettings}
-            style={{ background: savingSettings ? '#8b7bc5' : '#6b5ca5', border: 'none', color: '#fff', padding: '9px 24px', borderRadius: 24, cursor: savingSettings ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase' as const }}>
-            {savingSettings ? 'Gemmer...' : 'Gem lønsatser'}
-          </button>
-          {settingsSaved && <span style={{ fontSize: 11, color: '#2e8b6a', fontWeight: 500 }}>✓ Gemt</span>}
-        </div>
-      </div>
+      <SalarySection title="Lønsatser, København" currency="DKK" settingsKey="salary_defaults" defaults={cphSalary} />
+      <SalarySection title="Lønsatser, New York" currency="USD" settingsKey="salary_defaults_nyc" defaults={nycSalary} />
 
-      {/* Instruktørliste */}
       <div style={{ marginTop: 24 }}>
         {unassigned.length > 0 && (
           <div style={{ marginBottom: 24 }}>
@@ -253,14 +271,13 @@ export default function SetupPage() {
           </div>
         </div>
         <div>
-          <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700, marginBottom: 12 }}>Flatiron NYC ({nycInstructors.length})</div>
+          <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700, marginBottom: 12 }}>New York ({nycInstructors.length})</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10 }}>
             {nycInstructors.map(i => <InstructorCard key={i.id} instructor={i} locations={locations} saving={saving === i.id} onUpdate={(u) => updateInstructor(i.id, u)} onEditSalary={() => openSalaryModal(i)} />)}
           </div>
         </div>
       </div>
 
-      {/* Salary override modal */}
       {editingSalary && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: '#fff', borderRadius: 12, padding: 32, width: 440, boxShadow: '0 24px 64px rgba(0,0,0,.2)' }}>
@@ -268,10 +285,10 @@ export default function SetupPage() {
             <div style={{ fontSize: 12, color: '#8a85a0', marginBottom: 24 }}>Overskriver globale satser for denne instruktør</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {[
-                { label: 'Timepris pr. hold (kr.)', key: 'rate_per_class' },
-                { label: 'Bonus trin 2 (kr./del.)', key: 'bonus_tier_2' },
-                { label: 'Bonus trin 3 (kr./del.)', key: 'bonus_tier_3' },
-                { label: 'Bonus trin 4 (kr./del.)', key: 'bonus_tier_4' },
+                { label: 'Timepris pr. hold', key: 'rate_per_class' },
+                { label: 'Bonus trin 2 (pr./del.)', key: 'bonus_tier_2' },
+                { label: 'Bonus trin 3 (pr./del.)', key: 'bonus_tier_3' },
+                { label: 'Bonus trin 4 (pr./del.)', key: 'bonus_tier_4' },
               ].map(f => (
                 <label key={f.key} style={{ fontSize: 12, color: '#4a4560' }}>
                   {f.label}

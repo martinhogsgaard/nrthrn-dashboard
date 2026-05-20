@@ -28,7 +28,7 @@ const NAV = [
     ]
   },
   { label: 'NRTHRN Salg', href: '/dashboard/sales' },
-  { label: 'Opsætning', href: '/dashboard/setup' },
+  { label: 'Personale', href: '/dashboard/setup' },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
