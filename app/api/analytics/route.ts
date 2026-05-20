@@ -214,7 +214,10 @@ export async function GET() {
     summary: {
       cph_active_members: cphActive,
       nyc_active_members: nycActive,
-      data_sources: { arketa_rows: arketaData?.length || 0, mt_rows: mtData?.length || 0 }
+      data_sources: { arketa_rows: arketaData?.length || 0, mt_rows: mtData?.length || 0 },
+      month_count: months.length,
+      first_month: months[0]?.month,
+      last_month: months[months.length - 1]?.month,
     }
   })
 }
