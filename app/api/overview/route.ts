@@ -13,8 +13,10 @@ export async function GET(request: Request) {
 
   const now = new Date()
   const today = now.toISOString().split('T')[0]
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+  const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+  const defaultEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+  const monthStart = searchParams.get('start') || defaultStart
+  const monthEnd = searchParams.get('end') || defaultEnd
 
   // Hent alt fra Supabase — ingen live MT-kald
   const [
