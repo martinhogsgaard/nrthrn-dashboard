@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { calcPayroll, type SalaryRate, type ClassTypeRule } from '@/lib/payroll'
+import { calcPayroll, calcSessionBonus, calcSessionBonusFromRule, findClassTypeRule, type SalaryRate, type ClassTypeRule } from '@/lib/payroll'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -65,8 +65,25 @@ export async function GET(request: Request) {
       }
     })
 
+    // Beregn bonus og total per session til frontend visning
+    const sessionsWithPayroll = mappedSessions.map(s => {
+      const rule = (classTypeRules || []).length > 0
+        ? findClassTypeRule(s.class_name, instructor.level, classTypeRules as any)
+        : null
+      const sessionBaseRate = rule ? rule.base_rate : (activeRate as any).rate_per_class
+      const sessionBonus = rule
+        ? calcSessionBonusFromRule(s.participants, rule as any)
+        : calcSessionBonus(s.participants, activeRate as any)
+      return {
+        ...s,
+        base_rate: sessionBaseRate,
+        bonus: sessionBonus,
+        total_amount: sessionBaseRate + sessionBonus,
+      }
+    })
+
     const result = calcPayroll(
-      mappedSessions,
+      sessionsWithPayroll,
       activeRate as SalaryRate,
       instructor.employment_type === 'freelance',
       (classTypeRules || []) as ClassTypeRule[],
@@ -82,7 +99,7 @@ export async function GET(request: Request) {
         employment_type: instructor.employment_type,
       },
       sessions_count: mappedSessions.length,
-      sessions: mappedSessions,
+      sessions: sessionsWithPayroll,
       payroll: result,
       is_live_data: true,
     }
