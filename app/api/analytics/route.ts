@@ -10,12 +10,22 @@ const supabase = createClient(
 function categorize(name: string): 'subscription' | 'pack' | 'intro' | 'kiosk' | 'event' | 'other' {
   if (!name) return 'other'
   const n = name.toLowerCase()
+  // Subscriptions
   if (['classes (', 'revival (', 'warrior (', '4 monthly', '8 monthly', 'fitness space', 'sauna club',
-       'unlimited monthly', '2-week unlimited', 'flatiron founding', '4 monthly classes', '8 monthly classes'].some(k => n.includes(k.toLowerCase()))) return 'subscription'
-  if (['first timer', '3-class intro', '5 classes intro', 'intro'].some(k => n.includes(k))) return 'intro'
-  if (['1 class', '10 classes', '30 classes', '50 classes', '5 classes', 'saunagus', 'massage', 'klipkort', 'pack', 'clip'].some(k => n.includes(k))) return 'pack'
-  if (['marathon', 'event', 'workshop', 'bootcamp', 'buyout', 'open water', 'blackstone'].some(k => n.includes(k))) return 'event'
-  if (['barebells', 'good habit', 'nocco', 'storm drink', 'leggins', 'polene', 'late cancel', 'no show'].some(k => n.includes(k))) return 'kiosk'
+       'unlimited monthly', '2-week unlimited', 'flatiron founding membership', '4 monthly classes',
+       '8 monthly classes', 'monthly membership'].some(k => n.includes(k.toLowerCase()))) return 'subscription'
+  // Intro
+  if (['first timer', '3-class intro', 'intro class', 'intro pack', 'intro offer', '1 intro',
+       '3 class pack - intro'].some(k => n.includes(k.toLowerCase()))) return 'intro'
+  // Packs
+  if (['1 class', '5 class', '10 class', '30 classes', '50 classes', 'saunagus', 'massage',
+       'klipkort', 'clip', 'class pack', 'drop-in', 'sag 1'].some(k => n.includes(k.toLowerCase()))) return 'pack'
+  // Events
+  if (['marathon', 'event', 'workshop', 'bootcamp', 'buyout', 'open water', 'blackstone',
+       'challenge', 'turn up', '21-day', 'bundle', 'black friday'].some(k => n.includes(k.toLowerCase()))) return 'event'
+  // Kiosk
+  if (['barebells', 'good habit', 'nocco', 'storm drink', 'leggins', 'polene',
+       'late cancel', 'no show', 'credits', 'founding credits'].some(k => n.includes(k.toLowerCase()))) return 'kiosk'
   return 'other'
 }
 
