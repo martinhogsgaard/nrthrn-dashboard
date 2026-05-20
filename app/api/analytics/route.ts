@@ -80,6 +80,7 @@ export async function GET() {
     byMonth[month][`${prefix}_pack_revenue`] += Math.round(Number(row.pack_revenue) || 0)
     byMonth[month][`${prefix}_packs`] += Number(row.packs_sold) || 0
     byMonth[month][`${prefix}_intro_revenue`] += Math.round(Number(row.intro_revenue) || 0)
+    byMonth[month][`${prefix}_members`] += Number(row.new_subscriptions) || 0
   }
 
   // MT data
