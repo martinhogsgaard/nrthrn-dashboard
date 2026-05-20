@@ -6,22 +6,55 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!
 )
 
-export async function GET() {
-  const [
-    { data: revenueData },
-    { data: membersData },
-    { data: activeMembersData },
-    { data: ageData },
-    { data: packData },
-  ] = await Promise.all([
-    supabase.from('analytics_monthly').select('*').order('month'),
-    supabase.from('analytics_members_monthly').select('*').order('month'),
-    supabase.from('analytics_active_members').select('*').order('month'),
-    supabase.from('analytics_age_distribution').select('*'),
-    supabase.from('analytics_pack_sales').select('*').order('month'),
-  ])
+// Kategorisering baseret på produktnavn
+function categorize(name: string): 'subscription' | 'pack' | 'intro' | 'kiosk' | 'event' | 'other' {
+  if (!name) return 'other'
+  const n = name.toLowerCase()
+  if (['classes (', 'revival (', 'warrior (', '4 monthly', '8 monthly', 'fitness space', 'sauna club',
+       'unlimited monthly', '2-week unlimited', 'flatiron founding', '4 monthly classes', '8 monthly classes'].some(k => n.includes(k.toLowerCase()))) return 'subscription'
+  if (['first timer', '3-class intro', '5 classes intro', 'intro'].some(k => n.includes(k))) return 'intro'
+  if (['1 class', '10 classes', '30 classes', '50 classes', '5 classes', 'saunagus', 'massage', 'klipkort', 'pack', 'clip'].some(k => n.includes(k))) return 'pack'
+  if (['marathon', 'event', 'workshop', 'bootcamp', 'buyout', 'open water', 'blackstone'].some(k => n.includes(k))) return 'event'
+  if (['barebells', 'good habit', 'nocco', 'storm drink', 'leggins', 'polene', 'late cancel', 'no show'].some(k => n.includes(k))) return 'kiosk'
+  return 'other'
+}
 
-  // Gruppér pr. måned
+export async function GET() {
+  const MT_START = '2026-05-01'
+
+  // Hent Arketa transaktioner (før MT)
+  const { data: arketaData } = await supabase
+    .from('arketa_transactions')
+    .select('amount, status, created_at, category, pricing_option, location_id, currency')
+    .eq('status', 'Succeeded')
+    .lt('created_at', MT_START + 'T00:00:00Z')
+
+  // Hent MT orders (fra maj 2026)
+  const { data: mtData } = await supabase
+    .from('orders_cache')
+    .select('total, date_placed, summary, location_id')
+    .gte('date_placed', MT_START)
+
+  // Hent aktive medlemmer fra membership_cache
+  const { data: memberships } = await supabase
+    .from('membership_cache')
+    .select('purchase_location_id, renewal_rate, status')
+    .eq('status', 'active')
+
+  // Hent aldersfordeling fra arketa_clients
+  const { data: cphClients } = await supabase
+    .from('arketa_clients')
+    .select('date_of_birth')
+    .eq('location_id', '48718')
+    .not('date_of_birth', 'is', null)
+
+  const { data: nycClients } = await supabase
+    .from('arketa_clients')
+    .select('date_of_birth')
+    .eq('location_id', '48717')
+    .not('date_of_birth', 'is', null)
+
+  // Byg månedlig data
   const byMonth: Record<string, any> = {}
 
   const addMonth = (month: string) => {
@@ -31,51 +64,49 @@ export async function GET() {
       cph_subscription_revenue: 0, nyc_subscription_revenue: 0,
       cph_pack_revenue: 0, nyc_pack_revenue: 0,
       cph_intro_revenue: 0, nyc_intro_revenue: 0,
+      cph_kiosk_revenue: 0, nyc_kiosk_revenue: 0,
       cph_purchases: 0, nyc_purchases: 0,
-      total_purchases: 0,
-      cph_members: 0, nyc_members: 0,
-      cph_active: 0, nyc_active: 0,
       cph_packs: 0, nyc_packs: 0,
+      cph_members: 0, nyc_members: 0,
+      source: 'arketa',
     }
   }
 
-  for (const row of revenueData || []) {
-    const month = row.month.slice(0, 7)
+  // Arketa data
+  for (const row of arketaData || []) {
+    const month = row.created_at.slice(0, 7)
     addMonth(month)
-    const rev = Number(row.revenue) || 0
-    const pur = Number(row.purchases) || 0
+    const amount = Number(row.amount) || 0
     const isCPH = row.location_id === '48718'
     const prefix = isCPH ? 'cph' : 'nyc'
+    const cat = categorize(row.pricing_option || row.category || '')
 
-    byMonth[month][`${prefix}_revenue`] += rev
-    byMonth[month][`${prefix}_purchases`] += pur
-    byMonth[month].total_purchases += pur
+    byMonth[month][`${prefix}_revenue`] += amount
+    byMonth[month][`${prefix}_purchases`]++
 
-    // Kategori-opdeling
-    if (row.category === 'subscription') byMonth[month][`${prefix}_subscription_revenue`] += rev
-    else if (row.category === 'intro') byMonth[month][`${prefix}_intro_revenue`] += rev
-    else byMonth[month][`${prefix}_pack_revenue`] += rev
+    if (cat === 'subscription') byMonth[month][`${prefix}_subscription_revenue`] += amount
+    else if (cat === 'intro') byMonth[month][`${prefix}_intro_revenue`] += amount
+    else if (cat === 'pack') { byMonth[month][`${prefix}_pack_revenue`] += amount; byMonth[month][`${prefix}_packs`]++ }
+    else if (cat === 'kiosk') byMonth[month][`${prefix}_kiosk_revenue`] += amount
   }
 
-  for (const row of membersData || []) {
-    const month = row.month.slice(0, 7)
+  // MT data
+  for (const row of mtData || []) {
+    const month = row.date_placed.slice(0, 7)
     addMonth(month)
-    if (row.location_id === '48718') byMonth[month].cph_members += Number(row.new_members) || 0
-    else byMonth[month].nyc_members += Number(row.new_members) || 0
-  }
+    byMonth[month].source = 'mt'
+    const amount = Number(row.total) || 0
+    const isCPH = row.location_id === '48718'
+    const prefix = isCPH ? 'cph' : 'nyc'
+    const cat = categorize(row.summary || '')
 
-  for (const row of activeMembersData || []) {
-    const month = row.month.slice(0, 7)
-    addMonth(month)
-    if (row.location_id === '48718') byMonth[month].cph_active = Number(row.active_members) || 0
-    else byMonth[month].nyc_active = Number(row.active_members) || 0
-  }
+    byMonth[month][`${prefix}_revenue`] += amount
+    byMonth[month][`${prefix}_purchases`]++
 
-  for (const row of packData || []) {
-    const month = row.month.slice(0, 7)
-    addMonth(month)
-    if (row.location_id === '48718') byMonth[month].cph_packs = Number(row.packs_sold) || 0
-    else byMonth[month].nyc_packs = Number(row.packs_sold) || 0
+    if (cat === 'subscription') byMonth[month][`${prefix}_subscription_revenue`] += amount
+    else if (cat === 'intro') byMonth[month][`${prefix}_intro_revenue`] += amount
+    else if (cat === 'pack') { byMonth[month][`${prefix}_pack_revenue`] += amount; byMonth[month][`${prefix}_packs`]++ }
+    else if (cat === 'kiosk') byMonth[month][`${prefix}_kiosk_revenue`] += amount
   }
 
   const months = Object.values(byMonth)
@@ -89,20 +120,41 @@ export async function GET() {
       nyc_pack_revenue: Math.round(m.nyc_pack_revenue),
       cph_intro_revenue: Math.round(m.cph_intro_revenue),
       nyc_intro_revenue: Math.round(m.nyc_intro_revenue),
+      cph_kiosk_revenue: Math.round(m.cph_kiosk_revenue),
+      nyc_kiosk_revenue: Math.round(m.nyc_kiosk_revenue),
     }))
     .sort((a, b) => a.month.localeCompare(b.month))
 
+  // Aktive medlemmer (nuværende snapshot)
+  const cphActive = (memberships || []).filter(m => m.purchase_location_id === '48718' && m.renewal_rate > 0).length
+  const nycActive = (memberships || []).filter(m => m.purchase_location_id === '48717' && m.renewal_rate > 0).length
+
   // Aldersfordeling
-  const ageOrder = ['Gen Z (under 30)', 'Millennial (30-44)', 'Gen X (45-59)', 'Boomer (60+)']
+  const now = new Date()
+  const getAgeGroup = (dob: string) => {
+    const age = now.getFullYear() - new Date(dob).getFullYear()
+    if (age < 30) return 'Gen Z (under 30)'
+    if (age < 45) return 'Millennial (30-44)'
+    if (age < 60) return 'Gen X (45-59)'
+    return 'Boomer (60+)'
+  }
+
   const ageCPH: Record<string, number> = {}
   const ageNYC: Record<string, number> = {}
-  for (const row of ageData || []) {
-    if (row.location_id === '48718') ageCPH[row.age_group] = Number(row.count) || 0
-    else ageNYC[row.age_group] = Number(row.count) || 0
+
+  for (const c of cphClients || []) {
+    const g = getAgeGroup(c.date_of_birth)
+    ageCPH[g] = (ageCPH[g] || 0) + 1
   }
+  for (const c of nycClients || []) {
+    const g = getAgeGroup(c.date_of_birth)
+    ageNYC[g] = (ageNYC[g] || 0) + 1
+  }
+
+  const ageOrder = ['Gen Z (under 30)', 'Millennial (30-44)', 'Gen X (45-59)', 'Boomer (60+)']
   const totalCPH = Object.values(ageCPH).reduce((s, v) => s + v, 0)
   const totalNYC = Object.values(ageNYC).reduce((s, v) => s + v, 0)
-  const ageDistribution = ageOrder.map(group => ({
+  const age_distribution = ageOrder.map(group => ({
     group,
     cph_count: ageCPH[group] || 0,
     nyc_count: ageNYC[group] || 0,
@@ -112,16 +164,46 @@ export async function GET() {
 
   // Top produkter
   const productTotals: Record<string, any> = {}
-  for (const row of revenueData || []) {
-    const key = `${row.location_id}:${row.product}`
-    if (!productTotals[key]) productTotals[key] = { location: row.location, product: row.product, category: row.category, location_id: row.location_id, revenue: 0, purchases: 0 }
-    productTotals[key].revenue += Number(row.revenue) || 0
-    productTotals[key].purchases += Number(row.purchases) || 0
+
+  for (const row of arketaData || []) {
+    const product = row.pricing_option || 'Ukendt'
+    const key = `${row.location_id}:${product}`
+    if (!productTotals[key]) productTotals[key] = {
+      product, location_id: row.location_id,
+      location: row.location_id === '48718' ? 'CPH' : 'NYC',
+      currency: row.currency || (row.location_id === '48718' ? 'DKK' : 'USD'),
+      category: categorize(product), revenue: 0, purchases: 0
+    }
+    productTotals[key].revenue += Number(row.amount) || 0
+    productTotals[key].purchases++
   }
-  const topProducts = Object.values(productTotals)
+
+  for (const row of mtData || []) {
+    const product = row.summary || 'Ukendt'
+    const key = `${row.location_id}:${product}`
+    if (!productTotals[key]) productTotals[key] = {
+      product, location_id: row.location_id,
+      location: row.location_id === '48718' ? 'CPH' : 'NYC',
+      currency: row.location_id === '48718' ? 'DKK' : 'USD',
+      category: categorize(product), revenue: 0, purchases: 0
+    }
+    productTotals[key].revenue += Number(row.total) || 0
+    productTotals[key].purchases++
+  }
+
+  const top_products = Object.values(productTotals)
     .map(p => ({ ...p, revenue: Math.round(p.revenue) }))
     .sort((a: any, b: any) => b.revenue - a.revenue)
-    .slice(0, 20)
+    .slice(0, 30)
 
-  return NextResponse.json({ months, age_distribution: ageDistribution, top_products: topProducts })
+  return NextResponse.json({
+    months,
+    age_distribution,
+    top_products,
+    summary: {
+      cph_active_members: cphActive,
+      nyc_active_members: nycActive,
+      data_sources: { arketa_rows: arketaData?.length || 0, mt_rows: mtData?.length || 0 }
+    }
+  })
 }
