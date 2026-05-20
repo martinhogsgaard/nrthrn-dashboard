@@ -3,6 +3,15 @@
 import { useEffect, useState } from 'react'
 import { SecLabel, Card, Badge } from '@/components/ui'
 
+interface ClassTypeRule {
+  id: string
+  level: string
+  class_type_pattern: string
+  base_rate: number
+  bonus_rules: { from: number, to: number, rate: number, type?: string }[]
+  notes?: string
+}
+
 interface Location {
   id: string
   name: string
@@ -44,6 +53,104 @@ const defaultSalary: SalaryDefaults = {
   bonus_threshold_1: 8, bonus_threshold_2: 12, bonus_threshold_3: 15,
   junior_bonus_tier_2: 15, junior_bonus_tier_3: 25, junior_bonus_tier_4: 35,
   senior_bonus_tier_2: 20, senior_bonus_tier_3: 35, senior_bonus_tier_4: 50,
+}
+
+
+function ClassTypeRulesSection() {
+  const [rules, setRules] = useState<ClassTypeRule[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState<string | null>(null)
+  const [saved, setSaved] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/class-type-rules?location=48718')
+      .then(r => r.json())
+      .then(d => { setRules(d); setLoading(false) })
+  }, [])
+
+  function updateRule(id: string, field: string, value: any) {
+    setRules(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r))
+  }
+
+  function updateBonusRule(ruleId: string, idx: number, field: string, value: number) {
+    setRules(prev => prev.map(r => {
+      if (r.id !== ruleId) return r
+      const newBonus = [...r.bonus_rules]
+      newBonus[idx] = { ...newBonus[idx], [field]: value }
+      return { ...r, bonus_rules: newBonus }
+    }))
+  }
+
+  async function saveRule(rule: ClassTypeRule) {
+    setSaving(rule.id)
+    await fetch('/api/class-type-rules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: rule.id, base_rate: rule.base_rate, bonus_rules: rule.bonus_rules, notes: rule.notes })
+    })
+    setSaving(null)
+    setSaved(rule.id)
+    setTimeout(() => setSaved(null), 2000)
+  }
+
+  if (loading) return <div style={{ padding: 20, color: '#8a85a0' }}>Indlæser lønsatser...</div>
+
+  const juniorRules = rules.filter(r => r.level === 'junior')
+  const seniorRules = rules.filter(r => r.level === 'senior')
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24, marginTop: 20 }}>
+      <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1520', marginBottom: 4 }}>Lønsatser, København</div>
+      <div style={{ fontSize: 12, color: '#8a85a0', marginBottom: 20 }}>Holdtype-baserede satser. Bonus angives pr. deltager i det pågældende interval.</div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+        {[{ label: 'Junior', color: '#6b5ca5', rulesList: juniorRules }, { label: 'Senior', color: '#2e8b6a', rulesList: seniorRules }].map(({ label, color, rulesList }) => (
+          <div key={label}>
+            <div style={{ fontSize: 11, fontWeight: 700, color, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 14 }}>{label}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {rulesList.map(rule => (
+                <div key={rule.id} style={{ background: '#f8f7fc', border: '1px solid #e4e0f0', borderRadius: 8, padding: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#1a1520', marginBottom: 10 }}>{rule.class_type_pattern.replace('|', ' / ')}</div>
+                  <label style={{ fontSize: 11, color: '#4a4560' }}>
+                    Timepris (kr.)
+                    <input type="number" value={rule.base_rate}
+                      onChange={e => updateRule(rule.id, 'base_rate', Number(e.target.value))}
+                      style={{ display: 'block', width: '100%', padding: '5px 8px', border: '1px solid #e4e0f0', borderRadius: 6, fontSize: 12, fontFamily: 'Inter, sans-serif', marginTop: 3 }} />
+                  </label>
+                  {rule.bonus_rules.length > 0 && (
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ fontSize: 10, color: '#8a85a0', marginBottom: 6, letterSpacing: '.08em', textTransform: 'uppercase' }}>Bonus</div>
+                      {rule.bonus_rules.map((br, idx) => (
+                        br.type === 'fully_booked' ? (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                            <span style={{ fontSize: 11, color: '#4a4560', flex: 1 }}>Fuldt booket bonus (kr.)</span>
+                            <input type="number" value={br.rate}
+                              onChange={e => updateBonusRule(rule.id, idx, 'rate', Number(e.target.value))}
+                              style={{ width: 70, padding: '4px 8px', border: '1px solid #e4e0f0', borderRadius: 6, fontSize: 12, fontFamily: 'Inter, sans-serif' }} />
+                          </div>
+                        ) : br.rate === 0 ? null : (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                            <span style={{ fontSize: 11, color: '#4a4560', flex: 1 }}>{br.from}-{br.to} del. (kr./del.)</span>
+                            <input type="number" value={br.rate}
+                              onChange={e => updateBonusRule(rule.id, idx, 'rate', Number(e.target.value))}
+                              style={{ width: 70, padding: '4px 8px', border: '1px solid #e4e0f0', borderRadius: 6, fontSize: 12, fontFamily: 'Inter, sans-serif' }} />
+                          </div>
+                        )
+                      ))}
+                    </div>
+                  )}
+                  <button onClick={() => saveRule(rule)} disabled={saving === rule.id}
+                    style={{ marginTop: 10, background: saved === rule.id ? '#2e8b6a' : saving === rule.id ? '#8b7bc5' : '#6b5ca5', border: 'none', color: '#fff', padding: '6px 14px', borderRadius: 16, cursor: 'pointer', fontSize: 10, fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
+                    {saved === rule.id ? '✓ Gemt' : saving === rule.id ? 'Gemmer...' : 'Gem'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function SalarySection({ title, currency, settingsKey, defaults }: {
@@ -252,7 +359,7 @@ export default function SetupPage() {
         </div>
       </Card>
 
-      <SalarySection title="Lønsatser, København" currency="DKK" settingsKey="salary_defaults" defaults={cphSalary} />
+      <ClassTypeRulesSection />
       <SalarySection title="Lønsatser, New York" currency="USD" settingsKey="salary_defaults_nyc" defaults={nycSalary} />
 
       <div style={{ marginTop: 24 }}>
