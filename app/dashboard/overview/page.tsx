@@ -26,7 +26,7 @@ interface FirstTimersData {
 
 export default function OverviewPage() {
   const now = new Date()
-  const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+  const defaultStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
   const defaultEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
 
   const [start, setStart] = useState(defaultStart)
