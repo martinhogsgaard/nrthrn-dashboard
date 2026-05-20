@@ -222,7 +222,7 @@ function InstructorDetail({ data: d, period, onBack }: { data: InstructorPayroll
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ background: '#f8f7fc' }}>
-              {['Dato', 'Hold', 'Deltagere', 'Over 30', 'Under 30', 'Belægning', 'Timepris', 'Bonus', 'Total'].map(h => (
+              {['Dato', 'Hold', 'Deltagere', 'Over 30', 'Under 30', 'Kapacitet', 'Belægning', 'Timepris', 'Bonus', 'Total'].map(h => (
                 <th key={h} style={{ fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, padding: '10px 14px', textAlign: 'left', borderBottom: '1px solid #e4e0f0' }}>{h}</th>
               ))}
             </tr>
@@ -238,6 +238,7 @@ function InstructorDetail({ data: d, period, onBack }: { data: InstructorPayroll
                   <td style={{ padding: '10px 14px', fontWeight: 700 }}>{s.participants}</td>
                   <td style={{ padding: '10px 14px', color: '#6b5ca5', fontWeight: 600 }}>{s.participants_over_30}</td>
                   <td style={{ padding: '10px 14px', color: '#2e8b6a', fontWeight: 600 }}>{s.participants_under_30}</td>
+                  <td style={{ padding: '10px 14px', color: '#8a85a0' }}>{capacity > 0 ? capacity : '—'}</td>
                   <td style={{ padding: '10px 14px', color: '#8a85a0' }}>{s.participants > 0 ? `${pct}%` : '—'}</td>
                   <td style={{ padding: '10px 14px', color: '#4a4560' }}>{formatDKK(s.base_rate || 0)}</td>
                   <td style={{ padding: '10px 14px' }}>
