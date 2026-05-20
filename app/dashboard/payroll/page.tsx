@@ -73,7 +73,7 @@ export default function PayrollPage() {
 
   function exportCSV() {
     const rows = [
-      ['Instruktør', 'Niveau', 'Ansættelse', 'Hold', 'Deltagere', 'Timepris', 'Bonus', 'I alt'],
+      ['Instruktør', 'Niveau', 'Ansættelse', 'Hold', 'Deltagere', 'Løn', 'Bonus', 'I alt'],
       ...data.map(d => [
         d.instructor.name, d.instructor.level,
         d.instructor.employment_type === 'freelance' ? 'Selvstændig' : 'Timeansat',
