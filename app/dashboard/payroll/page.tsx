@@ -45,34 +45,7 @@ function getCurrentMonthRange() {
   const year = now.getFullYear()
   const month = String(now.getMonth() + 1).padStart(2, '0')
   const day = String(now.getDate()).padStart(2, '0')
-  const start = `${year}-${month}-01`
-  const end = `${year}-${month}-${day}`
-  return { start, end }
-}
-
-function calcBonusBreakdown(participants: number, rate: any) {
-  const t1 = rate?.bonus_threshold_1 ?? 8
-  const t2 = rate?.bonus_threshold_2 ?? 12
-  const t3 = rate?.bonus_threshold_3 ?? 15
-  const tier2 = rate?.bonus_tier_2 ?? 15
-  const tier3 = rate?.bonus_tier_3 ?? 25
-  const tier4 = rate?.bonus_tier_4 ?? 35
-
-  if (participants <= t1) return []
-  const lines = []
-  if (participants > t1) {
-    const count = Math.min(participants, t2) - t1
-    lines.push({ label: `Trin 2 (${t1}-${t2}): ${count} × ${tier2} kr.`, amount: count * tier2 })
-  }
-  if (participants > t2) {
-    const count = Math.min(participants, t3) - t2
-    lines.push({ label: `Trin 3 (${t2}-${t3}): ${count} × ${tier3} kr.`, amount: count * tier3 })
-  }
-  if (participants > t3) {
-    const count = participants - t3
-    lines.push({ label: `Trin 4 (${t3}+): ${count} × ${tier4} kr.`, amount: count * tier4 })
-  }
-  return lines
+  return { start: `${year}-${month}-01`, end: `${year}-${month}-${day}` }
 }
 
 export default function PayrollPage() {
@@ -101,13 +74,10 @@ export default function PayrollPage() {
     const rows = [
       ['Instruktør', 'Niveau', 'Ansættelse', 'Hold', 'Deltagere', 'Timepris', 'Bonus', 'I alt'],
       ...data.map(d => [
-        d.instructor.name,
-        d.instructor.level,
+        d.instructor.name, d.instructor.level,
         d.instructor.employment_type === 'freelance' ? 'Selvstændig' : 'Timeansat',
-        d.sessions_count,
-        d.payroll.total_participants,
-        d.payroll.time_total,
-        d.payroll.bonus_total,
+        d.sessions_count, d.payroll.total_participants,
+        d.payroll.time_total, d.payroll.bonus_total,
         d.instructor.employment_type === 'freelance' ? (d.payroll.invoice_total || 0) : d.payroll.subtotal,
       ])
     ]
@@ -120,13 +90,7 @@ export default function PayrollPage() {
     a.click()
   }
 
-  if (selected) return (
-    <InstructorDetail
-      data={selected}
-      period={period}
-      onBack={() => setSelected(null)}
-    />
-  )
+  if (selected) return <InstructorDetail data={selected} period={period} onBack={() => setSelected(null)} />
 
   return (
     <div>
@@ -228,12 +192,10 @@ export default function PayrollPage() {
 }
 
 function InstructorDetail({ data: d, period, onBack }: { data: InstructorPayroll, period: { start: string, end: string }, onBack: () => void }) {
-  const baseRate = d.sessions_count > 0 ? Math.round(d.payroll.time_total / d.sessions_count) : (d.instructor.level === 'senior' ? 500 : 300)
   const totalAmount = d.instructor.employment_type === 'freelance' ? (d.payroll.invoice_total || 0) : d.payroll.subtotal
 
   return (
     <div>
-      {/* Mørk header */}
       <div style={{ background: 'linear-gradient(90deg,#5a4898,#1a1228 60%,#5a4898)', borderRadius: 10, padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{ width: 46, height: 46, borderRadius: '50%', background: 'rgba(255,255,255,.2)', border: '2px solid rgba(255,255,255,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: '#fff' }}>
@@ -252,7 +214,6 @@ function InstructorDetail({ data: d, period, onBack }: { data: InstructorPayroll
         </button>
       </div>
 
-      {/* Sessions tabel */}
       <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, overflow: 'hidden', marginBottom: 16 }}>
         <div style={{ padding: '14px 20px', borderBottom: '1px solid #e4e0f0', fontSize: 9, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700 }}>
           Sessions — {period.start} til {period.end}
@@ -267,15 +228,8 @@ function InstructorDetail({ data: d, period, onBack }: { data: InstructorPayroll
           </thead>
           <tbody>
             {d.sessions.map((s, idx) => {
-              const bonusLines = calcBonusBreakdown(s.participants, {
-                bonus_threshold_1: 8, bonus_threshold_2: 12, bonus_threshold_3: 15,
-                bonus_tier_2: d.instructor.level === 'senior' ? 20 : 15,
-                bonus_tier_3: d.instructor.level === 'senior' ? 35 : 25,
-                bonus_tier_4: d.instructor.level === 'senior' ? 50 : 35,
-              })
               const capacity = 18
               const pct = s.participants > 0 ? Math.round(s.participants / capacity * 100) : 0
-
               return (
                 <tr key={idx} style={{ borderBottom: '1px solid #f0eef8' }}>
                   <td style={{ padding: '10px 14px', color: '#8a85a0' }}>{s.date}</td>
@@ -284,13 +238,13 @@ function InstructorDetail({ data: d, period, onBack }: { data: InstructorPayroll
                   <td style={{ padding: '10px 14px', color: '#6b5ca5', fontWeight: 600 }}>{s.participants_over_30}</td>
                   <td style={{ padding: '10px 14px', color: '#2e8b6a', fontWeight: 600 }}>{s.participants_under_30}</td>
                   <td style={{ padding: '10px 14px', color: '#8a85a0' }}>{s.participants > 0 ? `${pct}%` : '—'}</td>
-                  <td style={{ padding: '10px 14px', color: '#4a4560' }}>{formatDKK(baseRate)}</td>
+                  <td style={{ padding: '10px 14px', color: '#4a4560' }}>{formatDKK(s.base_rate || 0)}</td>
                   <td style={{ padding: '10px 14px' }}>
-                    {bonusLines.length > 0
-                      ? <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: '#f2f0f9', color: '#6b5ca5', border: '1px solid #d0c8e8', fontWeight: 600 }}>+{formatDKK(bonusLines.reduce((s, b) => s + b.amount, 0))}</span>
+                    {(s.bonus || 0) > 0
+                      ? <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: '#f2f0f9', color: '#6b5ca5', border: '1px solid #d0c8e8', fontWeight: 600 }}>+{formatDKK(s.bonus)}</span>
                       : '—'}
                   </td>
-                  <td style={{ padding: '10px 14px', fontWeight: 700, color: '#1a1520' }}>{formatDKK(baseRate + bonusLines.reduce((s, b) => s + b.amount, 0))}</td>
+                  <td style={{ padding: '10px 14px', fontWeight: 700, color: '#1a1520' }}>{formatDKK(s.total_amount || s.base_rate || 0)}</td>
                 </tr>
               )
             })}
@@ -298,12 +252,11 @@ function InstructorDetail({ data: d, period, onBack }: { data: InstructorPayroll
         </table>
       </div>
 
-      {/* Lønafregning */}
       <div style={{ background: '#f2f0f9', border: '1px solid #d0c8e8', borderRadius: 10, padding: '20px 24px' }}>
         <div style={{ fontSize: 9, letterSpacing: '.16em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700, marginBottom: 16 }}>Lønafregning</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
           {[
-            { label: `Timepris · ${d.sessions_count} hold × ${formatDKK(baseRate)}`, val: formatDKK(d.payroll.time_total) },
+            { label: `Timepris · ${d.sessions_count} hold`, val: formatDKK(d.payroll.time_total) },
             { label: 'Bonus i alt', val: formatDKK(d.payroll.bonus_total) },
             ...(d.instructor.employment_type === 'freelance' ? [
               { label: 'Subtotal ekskl. moms', val: formatDKK(d.payroll.subtotal) },
