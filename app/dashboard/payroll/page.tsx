@@ -222,7 +222,7 @@ function InstructorDetail({ data: d, period, onBack }: { data: InstructorPayroll
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ background: '#f8f7fc' }}>
-              {['Dato', 'Hold', 'Deltagere', 'Over 30', 'Under 30', 'Kapacitet', 'Belægning', 'Timepris', 'Bonus', 'Total'].map(h => (
+              {['Dato', 'Hold', 'Deltagere', 'Over 30', 'Under 30', 'Kapacitet', 'Belægning', 'Løn', 'Bonus', 'Total'].map(h => (
                 <th key={h} style={{ fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, padding: '10px 14px', textAlign: 'left', borderBottom: '1px solid #e4e0f0' }}>{h}</th>
               ))}
             </tr>
