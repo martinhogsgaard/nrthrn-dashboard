@@ -4,7 +4,8 @@ import { SecLabel, Card } from '@/components/ui'
 
 interface EmployeeRole {
   id: string
-  role: 'instructor' | 'receptionist' | 'cleaning' | 'other'
+  role: string
+  custom_title: string | null
   hourly_rate: number | null
   monthly_salary: number | null
   salary_type: 'hourly' | 'monthly'
@@ -66,18 +67,23 @@ const defaultSalary: SalaryDefaults = {
   senior_bonus_tier_2: 20, senior_bonus_tier_3: 35, senior_bonus_tier_4: 50,
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  instructor: 'Instruktør',
-  receptionist: 'Front desk',
-  cleaning: 'Rengøring',
-  other: 'Andet',
-}
-
 const ROLE_COLORS: Record<string, { bg: string, color: string, border: string }> = {
   instructor: { bg: '#f2f0f9', color: '#6b5ca5', border: '#d0c8e8' },
   receptionist: { bg: '#e8f5ef', color: '#2e8b6a', border: '#b0d8c4' },
   cleaning: { bg: '#fff3d4', color: '#9a6200', border: '#f0d080' },
-  other: { bg: '#f0f0f0', color: '#666', border: '#d8d8d8' },
+  other: { bg: '#f0f0f0', color: '#555', border: '#d8d8d8' },
+}
+
+function getRoleColor(role: string) {
+  return ROLE_COLORS[role] || ROLE_COLORS.other
+}
+
+function getRoleLabel(r: EmployeeRole) {
+  if (r.role === 'instructor') return 'Instruktør'
+  if (r.role === 'receptionist') return 'Front desk'
+  if (r.role === 'cleaning') return 'Rengøring'
+  if (r.role === 'other' && r.custom_title) return r.custom_title
+  return 'Andet'
 }
 
 const sortActive = (arr: Employee[]) =>
@@ -128,7 +134,7 @@ function ClassTypeRulesSection() {
   return (
     <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24, marginTop: 20 }}>
       <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1520', marginBottom: 4 }}>Lønsatser, København</div>
-      <div style={{ fontSize: 12, color: '#8a85a0', marginBottom: 20 }}>Holdtype-baserede satser. Bonus angives som fast beløb per session i intervallet.</div>
+      <div style={{ fontSize: 12, color: '#8a85a0', marginBottom: 20 }}>Holdtype-baserede satser. Bonus er fast beløb per session i intervallet.</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
         {[{ label: 'Junior', color: '#6b5ca5', rulesList: juniorRules }, { label: 'Senior', color: '#2e8b6a', rulesList: seniorRules }].map(({ label, color, rulesList }) => (
           <div key={label}>
@@ -180,107 +186,57 @@ function ClassTypeRulesSection() {
 }
 
 function SalarySection({ title, currency, settingsKey, defaults }: {
-  title: string
-  currency: 'DKK' | 'USD'
-  settingsKey: string
-  defaults: SalaryDefaults
+  title: string; currency: 'DKK' | 'USD'; settingsKey: string; defaults: SalaryDefaults
 }) {
   const [values, setValues] = useState<SalaryDefaults>(defaults)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-
   useEffect(() => { setValues(defaults) }, [JSON.stringify(defaults)])
-
   async function save() {
     setSaving(true)
-    await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: settingsKey, value: values })
-    })
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
+    await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: settingsKey, value: values }) })
+    setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 3000)
   }
-
   const curr = currency === 'USD' ? '$' : 'kr.'
-
   return (
     <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24, marginTop: 20 }}>
       <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1520', marginBottom: 4 }}>{title}</div>
-      <div style={{ fontSize: 12, color: '#8a85a0', marginBottom: 20 }}>Standard satser for alle instruktører. Kan overrides pr. instruktør.</div>
+      <div style={{ fontSize: 12, color: '#8a85a0', marginBottom: 20 }}>Standard satser. Kan overrides pr. medarbejder.</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#6b5ca5', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Junior</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[
-              { label: `Løn pr. hold (${curr})`, key: 'junior_rate' },
-              { label: `Bonus trin 2 (${curr})`, key: 'junior_bonus_tier_2' },
-              { label: `Bonus trin 3 (${curr})`, key: 'junior_bonus_tier_3' },
-              { label: `Bonus trin 4 (${curr})`, key: 'junior_bonus_tier_4' },
-            ].map(f => (
-              <label key={f.key} style={{ fontSize: 12, color: '#4a4560' }}>
-                {f.label}
-                <input type="number" value={values[f.key as keyof SalaryDefaults]}
-                  onChange={e => setValues(p => ({ ...p, [f.key]: Number(e.target.value) }))}
+        {[{ label: 'Junior', color: '#6b5ca5', keys: ['junior_rate','junior_bonus_tier_2','junior_bonus_tier_3','junior_bonus_tier_4'] },
+          { label: 'Senior', color: '#2e8b6a', keys: ['senior_rate','senior_bonus_tier_2','senior_bonus_tier_3','senior_bonus_tier_4'] }].map(({ label, color, keys }) => (
+          <div key={label}>
+            <div style={{ fontSize: 11, fontWeight: 700, color, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>{label}</div>
+            {keys.map(k => (
+              <label key={k} style={{ fontSize: 12, color: '#4a4560', display: 'block', marginBottom: 8 }}>
+                {k.replace(/_/g, ' ').replace('junior ', '').replace('senior ', '')} ({curr})
+                <input type="number" value={values[k as keyof SalaryDefaults]}
+                  onChange={e => setValues(p => ({ ...p, [k]: Number(e.target.value) }))}
                   style={{ display: 'block', width: '100%', padding: '6px 10px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }} />
               </label>
             ))}
           </div>
-        </div>
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#2e8b6a', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Senior</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[
-              { label: `Løn pr. hold (${curr})`, key: 'senior_rate' },
-              { label: `Bonus trin 2 (${curr})`, key: 'senior_bonus_tier_2' },
-              { label: `Bonus trin 3 (${curr})`, key: 'senior_bonus_tier_3' },
-              { label: `Bonus trin 4 (${curr})`, key: 'senior_bonus_tier_4' },
-            ].map(f => (
-              <label key={f.key} style={{ fontSize: 12, color: '#4a4560' }}>
-                {f.label}
-                <input type="number" value={values[f.key as keyof SalaryDefaults]}
-                  onChange={e => setValues(p => ({ ...p, [f.key]: Number(e.target.value) }))}
-                  style={{ display: 'block', width: '100%', padding: '6px 10px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }} />
-              </label>
-            ))}
-          </div>
-        </div>
-      </div>
-      <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #e4e0f0' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#8a85a0', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Bonustærskler (deltagere)</div>
-        <div style={{ display: 'flex', gap: 16 }}>
-          {[
-            { label: 'Trin 1 → 2', key: 'bonus_threshold_1' },
-            { label: 'Trin 2 → 3', key: 'bonus_threshold_2' },
-            { label: 'Trin 3 → 4', key: 'bonus_threshold_3' },
-          ].map(t => (
-            <label key={t.key} style={{ fontSize: 12, color: '#4a4560', flex: 1 }}>
-              {t.label}
-              <input type="number" value={values[t.key as keyof SalaryDefaults]}
-                onChange={e => setValues(p => ({ ...p, [t.key]: Number(e.target.value) }))}
-                style={{ display: 'block', width: '100%', padding: '6px 10px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }} />
-            </label>
-          ))}
-        </div>
+        ))}
       </div>
       <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
         <button onClick={save} disabled={saving}
-          style={{ background: saving ? '#8b7bc5' : '#6b5ca5', border: 'none', color: '#fff', padding: '9px 24px', borderRadius: 24, cursor: saving ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase' as const }}>
+          style={{ background: saving ? '#8b7bc5' : '#6b5ca5', border: 'none', color: '#fff', padding: '9px 24px', borderRadius: 24, cursor: 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
           {saving ? 'Gemmer...' : 'Gem lønsatser'}
         </button>
-        {saved && <span style={{ fontSize: 11, color: '#2e8b6a', fontWeight: 500 }}>✓ Gemt</span>}
+        {saved && <span style={{ fontSize: 11, color: '#2e8b6a' }}>✓ Gemt</span>}
       </div>
     </div>
   )
 }
 
-function RoleModal({ employee, onClose, onSaved }: {
-  employee: Employee
-  onClose: () => void
+function RoleForm({ employeeId, onSaved, onClose, isCreate = false }: {
+  employeeId: string
   onSaved: () => void
+  onClose: () => void
+  isCreate?: boolean
 }) {
-  const [role, setRole] = useState<'receptionist' | 'cleaning' | 'other'>('receptionist')
+  const [role, setRole] = useState('instructor')
+  const [customTitle, setCustomTitle] = useState('')
   const [salaryType, setSalaryType] = useState<'hourly' | 'monthly'>('hourly')
   const [hourlyRate, setHourlyRate] = useState(150)
   const [monthlySalary, setMonthlySalary] = useState(0)
@@ -292,38 +248,45 @@ function RoleModal({ employee, onClose, onSaved }: {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        employee_id: employee.id,
+        employee_id: employeeId,
         role,
-        hourly_rate: salaryType === 'hourly' ? hourlyRate : null,
-        monthly_salary: salaryType === 'monthly' ? monthlySalary : null,
-        salary_type: salaryType,
+        custom_title: role === 'other' ? customTitle : null,
+        hourly_rate: salaryType === 'hourly' && role !== 'instructor' ? hourlyRate : null,
+        monthly_salary: salaryType === 'monthly' && role !== 'instructor' ? monthlySalary : null,
+        salary_type: role === 'instructor' ? 'hourly' : salaryType,
       })
     })
     setSaving(false)
     onSaved()
-    onClose()
+    if (!isCreate) onClose()
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 380, boxShadow: '0 24px 64px rgba(0,0,0,.2)' }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1520', marginBottom: 4 }}>Tilføj rolle — {employee.name}</div>
-        <div style={{ fontSize: 12, color: '#8a85a0', marginBottom: 20 }}>Tilknyt en arbejdsfunktion med separat lønberegning</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <label style={{ fontSize: 12, color: '#4a4560' }}>
-            Rolle
-            <select value={role} onChange={e => setRole(e.target.value as any)}
-              style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }}>
-              <option value="receptionist">Front desk / Receptionist</option>
-              <option value="cleaning">Rengøring</option>
-              <option value="other">Andet</option>
-            </select>
-          </label>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <label style={{ fontSize: 12, color: '#4a4560' }}>
+        Rolle
+        <select value={role} onChange={e => setRole(e.target.value)}
+          style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }}>
+          <option value="instructor">Instruktør</option>
+          <option value="receptionist">Front desk</option>
+          <option value="cleaning">Rengøring</option>
+          <option value="other">Andet (skriv selv)</option>
+        </select>
+      </label>
+      {role === 'other' && (
+        <label style={{ fontSize: 12, color: '#4a4560' }}>
+          Titel
+          <input type="text" value={customTitle} onChange={e => setCustomTitle(e.target.value)} placeholder="f.eks. Vicevært"
+            style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4, boxSizing: 'border-box' as const }} />
+        </label>
+      )}
+      {role !== 'instructor' && (
+        <>
           <label style={{ fontSize: 12, color: '#4a4560' }}>
             Løntype
             <select value={salaryType} onChange={e => setSalaryType(e.target.value as any)}
               style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }}>
-              <option value="hourly">Timeløn (beregnes fra Sling vagter)</option>
+              <option value="hourly">Timeløn (fra Sling vagter)</option>
               <option value="monthly">Fast månedsløn</option>
             </select>
           </label>
@@ -341,9 +304,11 @@ function RoleModal({ employee, onClose, onSaved }: {
                 style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4, boxSizing: 'border-box' as const }} />
             </label>
           )}
-        </div>
-        <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-          <button onClick={save} disabled={saving}
+        </>
+      )}
+      {!isCreate && (
+        <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+          <button onClick={save} disabled={saving || (role === 'other' && !customTitle.trim())}
             style={{ flex: 1, background: '#6b5ca5', border: 'none', color: '#fff', padding: '10px', borderRadius: 24, cursor: 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
             {saving ? 'Gemmer...' : 'Tilføj rolle'}
           </button>
@@ -352,20 +317,29 @@ function RoleModal({ employee, onClose, onSaved }: {
             Annuller
           </button>
         </div>
+      )}
+    </div>
+  )
+}
+
+function RoleModal({ employee, onClose, onSaved }: { employee: Employee; onClose: () => void; onSaved: () => void }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 400, boxShadow: '0 24px 64px rgba(0,0,0,.2)' }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1520', marginBottom: 4 }}>Tilføj rolle — {employee.name}</div>
+        <div style={{ fontSize: 12, color: '#8a85a0', marginBottom: 20 }}>Tilknyt en arbejdsfunktion med separat lønberegning</div>
+        <RoleForm employeeId={employee.id} onSaved={onSaved} onClose={onClose} />
       </div>
     </div>
   )
 }
 
-function CreateEmployeeModal({ locations, onClose, onSaved }: {
-  locations: Location[]
-  onClose: () => void
-  onSaved: () => void
-}) {
+function CreateEmployeeModal({ locations, onClose, onSaved }: { locations: Location[]; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [locationId, setLocationId] = useState('')
-  const [role, setRole] = useState<'receptionist' | 'cleaning' | 'other'>('receptionist')
+  const [role, setRole] = useState('receptionist')
+  const [customTitle, setCustomTitle] = useState('')
   const [salaryType, setSalaryType] = useState<'hourly' | 'monthly'>('hourly')
   const [hourlyRate, setHourlyRate] = useState(150)
   const [monthlySalary, setMonthlySalary] = useState(0)
@@ -374,21 +348,11 @@ function CreateEmployeeModal({ locations, onClose, onSaved }: {
   async function save() {
     if (!name.trim()) return
     setSaving(true)
-    const initials = name.trim().split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+    const initials = name.trim().split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
     const empRes = await fetch('/api/instructors', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: name.trim(),
-        initials,
-        email: email || null,
-        location_id: locationId || null,
-        level: 'junior',
-        employment_type: 'employed',
-        is_active: true,
-        mariana_tek_id: '',
-        mariana_tek_profile_id: '',
-      })
+      body: JSON.stringify({ name: name.trim(), initials, email: email || null, location_id: locationId || null, level: 'junior', employment_type: 'employed', is_active: true, mariana_tek_id: '', mariana_tek_profile_id: '' })
     })
     const emp = await empRes.json()
     if (emp.id) {
@@ -398,9 +362,10 @@ function CreateEmployeeModal({ locations, onClose, onSaved }: {
         body: JSON.stringify({
           employee_id: emp.id,
           role,
-          hourly_rate: salaryType === 'hourly' ? hourlyRate : null,
-          monthly_salary: salaryType === 'monthly' ? monthlySalary : null,
-          salary_type: salaryType,
+          custom_title: role === 'other' ? customTitle : null,
+          hourly_rate: salaryType === 'hourly' && role !== 'instructor' ? hourlyRate : null,
+          monthly_salary: salaryType === 'monthly' && role !== 'instructor' ? monthlySalary : null,
+          salary_type: role === 'instructor' ? 'hourly' : salaryType,
         })
       })
     }
@@ -411,9 +376,9 @@ function CreateEmployeeModal({ locations, onClose, onSaved }: {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 420, boxShadow: '0 24px 64px rgba(0,0,0,.2)' }}>
+      <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 420, boxShadow: '0 24px 64px rgba(0,0,0,.2)', maxHeight: '90vh', overflowY: 'auto' }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1520', marginBottom: 4 }}>Opret medarbejder</div>
-        <div style={{ fontSize: 12, color: '#8a85a0', marginBottom: 20 }}>Manuel oprettelse — f.eks. vicevært eller rengøring</div>
+        <div style={{ fontSize: 12, color: '#8a85a0', marginBottom: 20 }}>Manuel oprettelse — f.eks. vicevært, rengøring, front desk</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <label style={{ fontSize: 12, color: '#4a4560' }}>
             Navn *
@@ -433,40 +398,55 @@ function CreateEmployeeModal({ locations, onClose, onSaved }: {
               {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
           </label>
-          <label style={{ fontSize: 12, color: '#4a4560' }}>
-            Rolle
-            <select value={role} onChange={e => setRole(e.target.value as any)}
-              style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }}>
-              <option value="receptionist">Front desk / Receptionist</option>
-              <option value="cleaning">Rengøring</option>
-              <option value="other">Andet</option>
-            </select>
-          </label>
-          <label style={{ fontSize: 12, color: '#4a4560' }}>
-            Løntype
-            <select value={salaryType} onChange={e => setSalaryType(e.target.value as any)}
-              style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }}>
-              <option value="hourly">Timeløn</option>
-              <option value="monthly">Fast månedsløn</option>
-            </select>
-          </label>
-          {salaryType === 'hourly' && (
+          <div style={{ borderTop: '1px solid #f0eef8', paddingTop: 12, marginTop: 4 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#8a85a0', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 12 }}>Rolle & løn</div>
             <label style={{ fontSize: 12, color: '#4a4560' }}>
-              Timesats (kr.)
-              <input type="number" value={hourlyRate} onChange={e => setHourlyRate(Number(e.target.value))}
-                style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4, boxSizing: 'border-box' as const }} />
+              Rolle
+              <select value={role} onChange={e => setRole(e.target.value)}
+                style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }}>
+                <option value="instructor">Instruktør</option>
+                <option value="receptionist">Front desk</option>
+                <option value="cleaning">Rengøring</option>
+                <option value="other">Andet (skriv selv)</option>
+              </select>
             </label>
-          )}
-          {salaryType === 'monthly' && (
-            <label style={{ fontSize: 12, color: '#4a4560' }}>
-              Månedsløn (kr.)
-              <input type="number" value={monthlySalary} onChange={e => setMonthlySalary(Number(e.target.value))}
-                style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4, boxSizing: 'border-box' as const }} />
-            </label>
-          )}
+            {role === 'other' && (
+              <label style={{ fontSize: 12, color: '#4a4560', display: 'block', marginTop: 10 }}>
+                Titel
+                <input type="text" value={customTitle} onChange={e => setCustomTitle(e.target.value)} placeholder="f.eks. Vicevært"
+                  style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4, boxSizing: 'border-box' as const }} />
+              </label>
+            )}
+            {role !== 'instructor' && (
+              <>
+                <label style={{ fontSize: 12, color: '#4a4560', display: 'block', marginTop: 10 }}>
+                  Løntype
+                  <select value={salaryType} onChange={e => setSalaryType(e.target.value as any)}
+                    style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }}>
+                    <option value="hourly">Timeløn (fra Sling vagter)</option>
+                    <option value="monthly">Fast månedsløn</option>
+                  </select>
+                </label>
+                {salaryType === 'hourly' && (
+                  <label style={{ fontSize: 12, color: '#4a4560', display: 'block', marginTop: 10 }}>
+                    Timesats (kr.)
+                    <input type="number" value={hourlyRate} onChange={e => setHourlyRate(Number(e.target.value))}
+                      style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4, boxSizing: 'border-box' as const }} />
+                  </label>
+                )}
+                {salaryType === 'monthly' && (
+                  <label style={{ fontSize: 12, color: '#4a4560', display: 'block', marginTop: 10 }}>
+                    Månedsløn (kr.)
+                    <input type="number" value={monthlySalary} onChange={e => setMonthlySalary(Number(e.target.value))}
+                      style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4, boxSizing: 'border-box' as const }} />
+                  </label>
+                )}
+              </>
+            )}
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-          <button onClick={save} disabled={saving || !name.trim()}
+          <button onClick={save} disabled={saving || !name.trim() || (role === 'other' && !customTitle.trim())}
             style={{ flex: 1, background: !name.trim() ? '#ccc' : '#6b5ca5', border: 'none', color: '#fff', padding: '10px', borderRadius: 24, cursor: name.trim() ? 'pointer' : 'not-allowed', fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
             {saving ? 'Opretter...' : 'Opret medarbejder'}
           </button>
@@ -481,9 +461,7 @@ function CreateEmployeeModal({ locations, onClose, onSaved }: {
 }
 
 function EmployeeCard({ employee: i, locations, saving, onUpdate, onEditSalary, onRolesChanged }: {
-  employee: Employee
-  locations: Location[]
-  saving: boolean
+  employee: Employee; locations: Location[]; saving: boolean
   onUpdate: (updates: Partial<Employee>) => void
   onEditSalary: () => void
   onRolesChanged: () => void
@@ -500,7 +478,7 @@ function EmployeeCard({ employee: i, locations, saving, onUpdate, onEditSalary, 
   return (
     <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 16, opacity: i.is_active ? 1 : 0.5 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-        {/* Venstre: avatar + navn + rolle-badges */}
+        {/* Venstre: avatar + navn + rolle badges */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#6b5ca5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
             {i.initials}
@@ -508,23 +486,22 @@ function EmployeeCard({ employee: i, locations, saving, onUpdate, onEditSalary, 
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1520' }}>{i.name}</div>
             {i.email && <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 1 }}>{i.email}</div>}
-            {/* Rolle badges under navn */}
             <div style={{ display: 'flex', gap: 4, marginTop: 5, flexWrap: 'wrap', alignItems: 'center' }}>
               {roles.map(r => {
-                const c = ROLE_COLORS[r.role] || ROLE_COLORS.other
+                const c = getRoleColor(r.role)
+                const label = getRoleLabel(r)
                 return (
                   <div key={r.role} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 10, fontWeight: 600, background: c.bg, color: c.color, border: `1px solid ${c.border}` }}>
-                      {ROLE_LABELS[r.role]}
+                      {label}
                       {r.role !== 'instructor' && r.hourly_rate ? ` · ${r.hourly_rate} kr/t` : ''}
                       {r.role !== 'instructor' && r.monthly_salary ? ` · ${r.monthly_salary} kr/md` : ''}
                     </span>
-                    {r.role !== 'instructor' && (
-                      <button onClick={() => removeRole(r.role)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c0392b', fontSize: 11, padding: '0 1px', lineHeight: 1 }}>
-                        ×
-                      </button>
-                    )}
+                    <button onClick={() => removeRole(r.role)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c0392b', fontSize: 11, padding: '0 1px', lineHeight: 1 }}
+                      title={`Fjern ${label}`}>
+                      ×
+                    </button>
                   </div>
                 )
               })}
@@ -566,11 +543,7 @@ function EmployeeCard({ employee: i, locations, saving, onUpdate, onEditSalary, 
       </div>
 
       {showRoleModal && (
-        <RoleModal
-          employee={i}
-          onClose={() => setShowRoleModal(false)}
-          onSaved={onRolesChanged}
-        />
+        <RoleModal employee={i} onClose={() => setShowRoleModal(false)} onSaved={onRolesChanged} />
       )}
     </div>
   )
@@ -625,12 +598,7 @@ export default function SetupPage() {
     await fetch('/api/salary-rates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        employee_id: editingSalary.id,
-        ...salaryOverride,
-        valid_from: new Date().toISOString().split('T')[0],
-        valid_to: null,
-      })
+      body: JSON.stringify({ employee_id: editingSalary.id, ...salaryOverride, valid_from: new Date().toISOString().split('T')[0], valid_to: null })
     })
     setSavingSalary(false)
     setEditingSalary(null)
@@ -639,11 +607,7 @@ export default function SetupPage() {
 
   async function updateEmployee(id: string, updates: Partial<Employee>) {
     setSaving(id)
-    await fetch(`/api/instructors/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates),
-    })
+    await fetch(`/api/instructors/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) })
     setEmployees(prev => prev.map(i => i.id === id ? { ...i, ...updates } : i))
     setSaving(null)
   }
@@ -689,8 +653,7 @@ export default function SetupPage() {
 
       <ClassTypeRulesSection />
 
-      {/* Medarbejderliste header med opret-knap */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 28, marginBottom: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 28, marginBottom: 12 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1520' }}>Medarbejdere</div>
         <button onClick={() => setShowCreateModal(true)}
           style={{ background: '#1a1228', border: 'none', color: '#fff', padding: '7px 18px', borderRadius: 24, cursor: 'pointer', fontSize: 11, fontFamily: 'Inter, sans-serif', fontWeight: 600, letterSpacing: '.06em' }}>
@@ -698,53 +661,41 @@ export default function SetupPage() {
         </button>
       </div>
 
-      <div style={{ marginTop: 12 }}>
-        {unassigned.length > 0 && (
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: '#c0392b', fontWeight: 700, marginBottom: 12 }}>⚠ Ikke tildelt lokation ({unassigned.length})</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {unassigned.map(i => (
-                <EmployeeCard key={i.id} employee={i} locations={locations} saving={saving === i.id}
-                  onUpdate={(u) => updateEmployee(i.id, u)}
-                  onEditSalary={() => openSalaryModal(i)}
-                  onRolesChanged={loadData} />
-              ))}
-            </div>
-          </div>
-        )}
-
+      {unassigned.length > 0 && (
         <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700, marginBottom: 12 }}>København ({cphEmployees.length})</div>
+          <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: '#c0392b', fontWeight: 700, marginBottom: 12 }}>⚠ Ikke tildelt lokation ({unassigned.length})</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {cphEmployees.map(i => (
+            {unassigned.map(i => (
               <EmployeeCard key={i.id} employee={i} locations={locations} saving={saving === i.id}
-                onUpdate={(u) => updateEmployee(i.id, u)}
-                onEditSalary={() => openSalaryModal(i)}
-                onRolesChanged={loadData} />
+                onUpdate={(u) => updateEmployee(i.id, u)} onEditSalary={() => openSalaryModal(i)} onRolesChanged={loadData} />
             ))}
           </div>
         </div>
+      )}
 
-        <div>
-          <SalarySection title="Lønsatser, New York" currency="USD" settingsKey="salary_defaults_nyc" defaults={nycSalary} />
-          <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700, marginBottom: 12, marginTop: 24 }}>New York ({nycEmployees.length})</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {nycEmployees.map(i => (
-              <EmployeeCard key={i.id} employee={i} locations={locations} saving={saving === i.id}
-                onUpdate={(u) => updateEmployee(i.id, u)}
-                onEditSalary={() => openSalaryModal(i)}
-                onRolesChanged={loadData} />
-            ))}
-          </div>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700, marginBottom: 12 }}>København ({cphEmployees.length})</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {cphEmployees.map(i => (
+            <EmployeeCard key={i.id} employee={i} locations={locations} saving={saving === i.id}
+              onUpdate={(u) => updateEmployee(i.id, u)} onEditSalary={() => openSalaryModal(i)} onRolesChanged={loadData} />
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <SalarySection title="Lønsatser, New York" currency="USD" settingsKey="salary_defaults_nyc" defaults={nycSalary} />
+        <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700, marginBottom: 12, marginTop: 24 }}>New York ({nycEmployees.length})</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {nycEmployees.map(i => (
+            <EmployeeCard key={i.id} employee={i} locations={locations} saving={saving === i.id}
+              onUpdate={(u) => updateEmployee(i.id, u)} onEditSalary={() => openSalaryModal(i)} onRolesChanged={loadData} />
+          ))}
         </div>
       </div>
 
       {showCreateModal && (
-        <CreateEmployeeModal
-          locations={locations}
-          onClose={() => setShowCreateModal(false)}
-          onSaved={loadData}
-        />
+        <CreateEmployeeModal locations={locations} onClose={() => setShowCreateModal(false)} onSaved={loadData} />
       )}
 
       {editingSalary && (

@@ -9,13 +9,13 @@ const supabase = createClient(
 // Tilføj eller opdater en rolle
 export async function POST(request: Request) {
   const body = await request.json()
-  const { employee_id, role, hourly_rate, monthly_salary, salary_type, sling_user_id, notes } = body
-
+const { employee_id, role, custom_title, hourly_rate, monthly_salary, salary_type, sling_user_id, notes } = body
   const { data, error } = await supabase
     .from('employee_roles')
     .upsert({
       employee_id,
       role,
+      custom_title: custom_title || null,
       hourly_rate: hourly_rate || null,
       monthly_salary: monthly_salary || null,
       salary_type: salary_type || 'hourly',
