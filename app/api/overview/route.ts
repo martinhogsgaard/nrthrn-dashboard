@@ -27,6 +27,7 @@ export async function GET(request: Request) {
     { data: bruceRateData },
     { data: orders },
     { data: equipmentSales },
+    { data: classTypeRules },
   ] = await Promise.all([
     supabase.from('sessions_cache').select('*').eq('location_id', location).gte('date', monthStart).lte('date', monthEnd),
     supabase.from('instructors').select('*, salary_rates(*)').eq('is_active', true),
@@ -37,6 +38,7 @@ export async function GET(request: Request) {
     supabase.from('bruce_rates').select('rate_per_visit').eq('month', monthStart).single(),
     supabase.from('orders_cache').select('total, summary').eq('location_id', location).gte('date_placed', monthStart).lte('date_placed', today + 'T23:59:59Z'),
     supabase.from('equipment_sales').select('sale_price, quantity').eq('location_id', location).gte('sale_date', monthStart).lte('sale_date', today),
+    supabase.from('class_type_rules').select('*').eq('location_id', location),
   ])
 
   const historicSessions = allSessions?.filter(s => s.date <= today && !s.is_cancelled) || []
@@ -44,11 +46,18 @@ export async function GET(request: Request) {
 
   // Løn
   function calcTotalPayroll(sessions: any[]) {
+    const hasClassTypeRules = (classTypeRules || []).length > 0
     return (instructors || []).reduce((total, instructor) => {
-      const activeRate = instructor.salary_rates
-        ?.filter((r: any) => !r.valid_to)
-        ?.sort((a: any, b: any) => new Date(b.valid_from).getTime() - new Date(a.valid_from).getTime())[0]
-        || { rate_per_class: instructor.level === 'senior' ? 500 : 300, bonus_threshold_1: 8, bonus_threshold_2: 12, bonus_threshold_3: 15, bonus_tier_2: instructor.level === 'senior' ? 20 : 15, bonus_tier_3: instructor.level === 'senior' ? 35 : 25, bonus_tier_4: instructor.level === 'senior' ? 50 : 35 }
+      const activeRate = hasClassTypeRules
+        ? {
+            rate_per_class: instructor.level === 'senior' ? 500 : 300,
+            bonus_threshold_1: 8, bonus_threshold_2: 12, bonus_threshold_3: 15,
+            bonus_tier_2: 0, bonus_tier_3: 0, bonus_tier_4: 0,
+          }
+        : instructor.salary_rates
+            ?.filter((r: any) => !r.valid_to)
+            ?.sort((a: any, b: any) => new Date(b.valid_from).getTime() - new Date(a.valid_from).getTime())[0]
+          || { rate_per_class: instructor.level === 'senior' ? 500 : 300, bonus_threshold_1: 8, bonus_threshold_2: 12, bonus_threshold_3: 15, bonus_tier_2: 0, bonus_tier_3: 0, bonus_tier_4: 0 }
 
       const instrSessions = sessions.filter(s =>
         s.instructor_profile_id === instructor.mariana_tek_profile_id || s.instructor_name === instructor.name
@@ -60,7 +69,13 @@ export async function GET(request: Request) {
       })
 
       if (instrSessions.length === 0) return total
-      const result = calcPayroll(instrSessions, activeRate, instructor.employment_type === 'freelance')
+      const result = calcPayroll(
+        instrSessions,
+        activeRate,
+        instructor.employment_type === 'freelance',
+        (classTypeRules || []) as any,
+        instructor.level
+      )
       return total + (instructor.employment_type === 'freelance' ? (result.invoice_total || 0) : result.subtotal)
     }, 0)
   }
