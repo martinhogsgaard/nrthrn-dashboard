@@ -220,5 +220,37 @@ export async function GET(request: Request) {
     results.orders = `Fejl: ${e.message}`
   }
 
+  // MRR Snapshot — kør kun d. 1. i måneden, gem forrige måneds MRR
+  try {
+    const isFirstOfMonth = now.getDate() === 1
+    if (isFirstOfMonth) {
+      const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
+      const prevMonthStart = new Date(prevMonthEnd.getFullYear(), prevMonthEnd.getMonth(), 1)
+      const snapshotMonth = `${prevMonthStart.getFullYear()}-${String(prevMonthStart.getMonth() + 1).padStart(2, '0')}-01`
+
+      // Hent alle aktive abonnementer der havde next_charge_date i forrige måned
+      const { data: snapshotMemberships } = await supabase
+        .from('membership_cache')
+        .select('renewal_rate, status')
+        .eq('status', 'active')
+        .eq('purchase_location_id', '48718')
+
+      if (snapshotMemberships) {
+        const paying = snapshotMemberships.filter(m => (m.renewal_rate || 0) > 0)
+        const mrr = Math.round(paying.reduce((s, m) => s + (m.renewal_rate || 0), 0))
+
+        const { error } = await supabase
+          .from('mrr_snapshots')
+          .upsert({ month: snapshotMonth, mrr, member_count: snapshotMemberships.length, paying_count: paying.length }, { onConflict: 'month' })
+
+        results.mrr_snapshot = error ? `Fejl: ${error.message}` : `Snapshot gemt for ${snapshotMonth}: ${mrr} kr.`
+      }
+    } else {
+      results.mrr_snapshot = `Springer over — kun d. 1. i måneden (i dag er d. ${now.getDate()})`
+    }
+  } catch (e: any) {
+    results.mrr_snapshot = `Fejl: ${e.message}`
+  }
+
   return NextResponse.json({ success: true, ...results })
 }
