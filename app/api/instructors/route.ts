@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   const all = searchParams.get('all') === 'true'
 
   let query = supabase
-    .from('instructors')
+    .from('employees')
     .select('*, salary_rates(*), employee_roles(*)')
     .order('name')
 
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const body = await request.json()
   const { data, error } = await supabase
-    .from('instructors')
+    .from('employees')
     .insert(body)
     .select()
     .single()

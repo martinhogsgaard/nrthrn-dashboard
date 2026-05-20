@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     supabase.from('membership_cache').select('*').eq('purchase_location_id', location).eq('status', 'active').gt('next_charge_date', new Date().toISOString()),
     supabase.from('orders_cache').select('total, summary').eq('location_id', location).gte('date_placed', start).lte('date_placed', end + 'T23:59:59Z'),
     supabase.from('sessions_cache').select('*').eq('location_id', location).gte('date', start).lte('date', end),
-    supabase.from('instructors').select('*, salary_rates(*)').eq('is_active', true),
+    supabase.from('employees').select('*, salary_rates(*)').eq('is_active', true),
     supabase.from('settings').select('*').eq('key', 'salary_defaults').single(),
   ])
 

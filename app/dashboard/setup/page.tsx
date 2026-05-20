@@ -289,7 +289,7 @@ function RoleModal({ instructor, onClose, onSaved }: {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        instructor_id: instructor.id,
+        employee_id: instructor.id,
         role,
         hourly_rate: salaryType === 'hourly' ? hourlyRate : null,
         monthly_salary: salaryType === 'monthly' ? monthlySalary : null,
@@ -367,7 +367,7 @@ function InstructorCard({ instructor: i, locations, saving, onUpdate, onEditSala
   const [showRoleModal, setShowRoleModal] = useState(false)
 
   async function removeRole(role: string) {
-    await fetch(`/api/employee-roles?instructor_id=${i.id}&role=${role}`, { method: 'DELETE' })
+    await fetch(`/api/employee-roles?employee_id=${i.id}&role=${role}`, { method: 'DELETE' })
     onRolesChanged()
   }
 
@@ -495,7 +495,7 @@ export default function SetupPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        instructor_id: editingSalary.id,
+        employee_id: editingSalary.id,
         ...salaryOverride,
         valid_from: new Date().toISOString().split('T')[0],
         valid_to: null,

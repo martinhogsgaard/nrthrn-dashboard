@@ -9,12 +9,12 @@ const supabase = createClient(
 // Tilføj eller opdater en rolle
 export async function POST(request: Request) {
   const body = await request.json()
-  const { instructor_id, role, hourly_rate, monthly_salary, salary_type, sling_user_id, notes } = body
+  const { employee_id, role, hourly_rate, monthly_salary, salary_type, sling_user_id, notes } = body
 
   const { data, error } = await supabase
     .from('employee_roles')
     .upsert({
-      instructor_id,
+      employee_id,
       role,
       hourly_rate: hourly_rate || null,
       monthly_salary: monthly_salary || null,
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       sling_user_id: sling_user_id || null,
       notes: notes || null,
       is_active: true,
-    }, { onConflict: 'instructor_id,role' })
+    }, { onConflict: 'employee_id,role' })
     .select()
     .single()
 
@@ -33,11 +33,11 @@ export async function POST(request: Request) {
 // Slet en rolle
 export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url)
-  const instructor_id = searchParams.get('instructor_id')
+  const employee_id = searchParams.get('employee_id')
   const role = searchParams.get('role')
 
-  if (!instructor_id || !role) {
-    return NextResponse.json({ error: 'Mangler instructor_id eller role' }, { status: 400 })
+  if (!employee_id || !role) {
+    return NextResponse.json({ error: 'Mangler employee_id eller role' }, { status: 400 })
   }
 
   // Instructor-rollen kan ikke slettes
@@ -48,7 +48,7 @@ export async function DELETE(request: Request) {
   const { error } = await supabase
     .from('employee_roles')
     .delete()
-    .eq('instructor_id', instructor_id)
+    .eq('employee_id', employee_id)
     .eq('role', role)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

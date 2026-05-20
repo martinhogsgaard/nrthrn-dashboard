@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     { data: sessions },
     { data: classTypeRules },
   ] = await Promise.all([
-    supabase.from('instructors').select('*, salary_rates(*)').eq('is_active', true),
+    supabase.from('employees').select('*, salary_rates(*)').eq('is_active', true),
     supabase.from('sessions_cache').select('*').eq('location_id', location).gte('date', start).lte('date', end).eq('is_cancelled', false),
     supabase.from('class_type_rules').select('*').eq('location_id', location),
   ])

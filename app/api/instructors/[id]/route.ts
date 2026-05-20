@@ -13,7 +13,7 @@ export async function PATCH(
   const { id } = await params
   const body = await request.json()
   const { data, error } = await supabase
-    .from('instructors')
+    .from('employees')
     .update(body)
     .eq('id', id)
     .select()

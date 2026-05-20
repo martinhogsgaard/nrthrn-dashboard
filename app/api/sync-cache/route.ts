@@ -153,7 +153,7 @@ export async function GET(request: Request) {
 
     const valid = instructorsToUpsert.filter((i): i is NonNullable<typeof i> => i !== null)
     if (valid.length > 0) {
-      await supabase.from('instructors').upsert(valid, { onConflict: 'mariana_tek_id', ignoreDuplicates: false })
+      await supabase.from('employees').upsert(valid, { onConflict: 'mariana_tek_id', ignoreDuplicates: false })
     }
     results.instructors = `${valid.length} instruktører opdateret`
   } catch (e: any) {

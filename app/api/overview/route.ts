@@ -32,7 +32,7 @@ export async function GET(request: Request) {
     { data: classTypeRules },
   ] = await Promise.all([
     supabase.from('sessions_cache').select('*').eq('location_id', location).gte('date', monthStart).lte('date', monthEnd),
-    supabase.from('instructors').select('*, salary_rates(*)').eq('is_active', true),
+    supabase.from('employees').select('*, salary_rates(*)').eq('is_active', true),
     supabase.from('membership_cache').select('*').eq('purchase_location_id', location).eq('status', 'active').or(`next_charge_date.gt.${new Date().toISOString()},next_charge_date.is.null`),
     supabase.from('members').select('is_over_30').not('birth_date', 'is', null),
     supabase.from('members').select('id').gte('joined_date', monthStart).lte('joined_date', today),
