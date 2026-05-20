@@ -86,15 +86,13 @@ export function calcSessionBonusFromRule(
 
   for (const br of rule.bonus_rules) {
     if (br.type === 'fully_booked') {
-      // Fast bonus hvis holdet er fuldt booket (participants >= br.from)
       if (participants >= br.from) {
         bonus += br.rate
       }
     } else {
-      // Per-deltager bonus i interval [from, to]
-      if (participants >= br.from) {
-        const inTier = Math.min(participants, br.to) - br.from + 1
-        bonus += inTier * br.rate
+      // Fast beløb hvis deltagerantal falder inden for intervallet [from, to]
+      if (participants >= br.from && participants <= br.to) {
+        bonus += br.rate
       }
     }
   }
