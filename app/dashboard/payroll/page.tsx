@@ -228,7 +228,7 @@ function InstructorDetail({ data: d, period, onBack }: { data: InstructorPayroll
           </thead>
           <tbody>
             {d.sessions.map((s, idx) => {
-              const capacity = 18
+              const capacity = s.capacity || 18
               const pct = s.participants > 0 ? Math.round(s.participants / capacity * 100) : 0
               return (
                 <tr key={idx} style={{ borderBottom: '1px solid #f0eef8' }}>

@@ -62,6 +62,7 @@ export async function GET(request: Request) {
         is_estimated: over30 === null,
         date: s.date,
         class_name: s.class_type,
+        capacity: s.capacity || 18,
       }
     })
 
