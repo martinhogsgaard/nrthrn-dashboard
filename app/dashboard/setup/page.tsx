@@ -1,7 +1,17 @@
 'use client'
-
 import { useEffect, useState } from 'react'
 import { SecLabel, Card, Badge } from '@/components/ui'
+
+interface EmployeeRole {
+  id: string
+  role: 'instructor' | 'receptionist' | 'cleaning' | 'other'
+  hourly_rate: number | null
+  monthly_salary: number | null
+  salary_type: 'hourly' | 'monthly'
+  sling_user_id: string | null
+  notes: string | null
+  is_active: boolean
+}
 
 interface ClassTypeRule {
   id: string
@@ -32,6 +42,7 @@ interface Instructor {
   email?: string | null
   birth_date?: string | null
   salary_rates?: any[]
+  employee_roles?: EmployeeRole[]
 }
 
 interface SalaryDefaults {
@@ -55,6 +66,19 @@ const defaultSalary: SalaryDefaults = {
   senior_bonus_tier_2: 20, senior_bonus_tier_3: 35, senior_bonus_tier_4: 50,
 }
 
+const ROLE_LABELS: Record<string, string> = {
+  instructor: 'Instruktør',
+  receptionist: 'Front desk',
+  cleaning: 'Rengøring',
+  other: 'Andet',
+}
+
+const ROLE_COLORS: Record<string, { bg: string, color: string, border: string }> = {
+  instructor: { bg: '#f2f0f9', color: '#6b5ca5', border: '#d0c8e8' },
+  receptionist: { bg: '#e8f5ef', color: '#2e8b6a', border: '#b0d8c4' },
+  cleaning: { bg: '#fff3d4', color: '#9a6200', border: '#f0d080' },
+  other: { bg: '#f0f0f0', color: '#666', border: '#d8d8d8' },
+}
 
 function ClassTypeRulesSection() {
   const [rules, setRules] = useState<ClassTypeRule[]>([])
@@ -102,7 +126,6 @@ function ClassTypeRulesSection() {
     <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24, marginTop: 20 }}>
       <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1520', marginBottom: 4 }}>Lønsatser, København</div>
       <div style={{ fontSize: 12, color: '#8a85a0', marginBottom: 20 }}>Holdtype-baserede satser. Bonus angives pr. deltager i det pågældende interval.</div>
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
         {[{ label: 'Junior', color: '#6b5ca5', rulesList: juniorRules }, { label: 'Senior', color: '#2e8b6a', rulesList: seniorRules }].map(({ label, color, rulesList }) => (
           <div key={label}>
@@ -249,6 +272,180 @@ function SalarySection({ title, currency, settingsKey, defaults }: {
   )
 }
 
+function RoleModal({ instructor, onClose, onSaved }: {
+  instructor: Instructor
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [role, setRole] = useState<'receptionist' | 'cleaning' | 'other'>('receptionist')
+  const [salaryType, setSalaryType] = useState<'hourly' | 'monthly'>('hourly')
+  const [hourlyRate, setHourlyRate] = useState(150)
+  const [monthlySalary, setMonthlySalary] = useState(0)
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    setSaving(true)
+    await fetch('/api/employee-roles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        instructor_id: instructor.id,
+        role,
+        hourly_rate: salaryType === 'hourly' ? hourlyRate : null,
+        monthly_salary: salaryType === 'monthly' ? monthlySalary : null,
+        salary_type: salaryType,
+      })
+    })
+    setSaving(false)
+    onSaved()
+    onClose()
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 380, boxShadow: '0 24px 64px rgba(0,0,0,.2)' }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1520', marginBottom: 4 }}>Tilføj rolle — {instructor.name}</div>
+        <div style={{ fontSize: 12, color: '#8a85a0', marginBottom: 20 }}>Tilknyt en ekstra arbejdsfunktion med separat lønberegning</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <label style={{ fontSize: 12, color: '#4a4560' }}>
+            Rolle
+            <select value={role} onChange={e => setRole(e.target.value as any)}
+              style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }}>
+              <option value="receptionist">Front desk / Receptionist</option>
+              <option value="cleaning">Rengøring</option>
+              <option value="other">Andet</option>
+            </select>
+          </label>
+          <label style={{ fontSize: 12, color: '#4a4560' }}>
+            Løntype
+            <select value={salaryType} onChange={e => setSalaryType(e.target.value as any)}
+              style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4 }}>
+              <option value="hourly">Timeløn (beregnes fra Sling vagter)</option>
+              <option value="monthly">Fast månedsløn</option>
+            </select>
+          </label>
+          {salaryType === 'hourly' && (
+            <label style={{ fontSize: 12, color: '#4a4560' }}>
+              Timesats (kr.)
+              <input type="number" value={hourlyRate} onChange={e => setHourlyRate(Number(e.target.value))}
+                style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4, boxSizing: 'border-box' as const }} />
+            </label>
+          )}
+          {salaryType === 'monthly' && (
+            <label style={{ fontSize: 12, color: '#4a4560' }}>
+              Månedsløn (kr.)
+              <input type="number" value={monthlySalary} onChange={e => setMonthlySalary(Number(e.target.value))}
+                style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4, boxSizing: 'border-box' as const }} />
+            </label>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+          <button onClick={save} disabled={saving}
+            style={{ flex: 1, background: '#6b5ca5', border: 'none', color: '#fff', padding: '10px', borderRadius: 24, cursor: 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
+            {saving ? 'Gemmer...' : 'Tilføj rolle'}
+          </button>
+          <button onClick={onClose}
+            style={{ flex: 1, background: '#f8f7fc', border: '1px solid #e4e0f0', color: '#1a1520', padding: '10px', borderRadius: 24, cursor: 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif' }}>
+            Annuller
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function InstructorCard({ instructor: i, locations, saving, onUpdate, onEditSalary, onRolesChanged }: {
+  instructor: Instructor
+  locations: Location[]
+  saving: boolean
+  onUpdate: (updates: Partial<Instructor>) => void
+  onEditSalary: () => void
+  onRolesChanged: () => void
+}) {
+  const hasOverride = i.salary_rates && i.salary_rates.length > 0
+  const roles = i.employee_roles || []
+  const [showRoleModal, setShowRoleModal] = useState(false)
+
+  async function removeRole(role: string) {
+    await fetch(`/api/employee-roles?instructor_id=${i.id}&role=${role}`, { method: 'DELETE' })
+    onRolesChanged()
+  }
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 16, opacity: i.is_active ? 1 : 0.5 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#6b5ca5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+            {i.initials}
+          </div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1520' }}>{i.name}</div>
+            {i.email && <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 1 }}>{i.email}</div>}
+            <div style={{ display: 'flex', gap: 4, marginTop: 5, flexWrap: 'wrap', alignItems: 'center' }}>
+              {roles.map(r => {
+                const c = ROLE_COLORS[r.role] || ROLE_COLORS.other
+                return (
+                  <div key={r.role} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 10, fontWeight: 600, background: c.bg, color: c.color, border: `1px solid ${c.border}` }}>
+                      {ROLE_LABELS[r.role]}
+                      {r.role !== 'instructor' && r.hourly_rate ? ` · ${r.hourly_rate} kr/t` : ''}
+                      {r.role !== 'instructor' && r.monthly_salary ? ` · ${r.monthly_salary} kr/md` : ''}
+                    </span>
+                    {r.role !== 'instructor' && (
+                      <button onClick={() => removeRole(r.role)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c0392b', fontSize: 11, padding: '0 1px', lineHeight: 1 }}>
+                        ×
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+              <button onClick={() => setShowRoleModal(true)}
+                style={{ fontSize: 9, padding: '2px 7px', borderRadius: 10, border: '1px dashed #d0c8e8', background: 'transparent', color: '#8a85a0', cursor: 'pointer' }}>
+                + Rolle
+              </button>
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select value={i.location_id || ''} onChange={e => onUpdate({ location_id: e.target.value || null })}
+            style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #e4e0f0', fontSize: 11, color: '#1a1520', fontFamily: 'Inter, sans-serif', background: '#f8f7fc', cursor: 'pointer' }}>
+            <option value="">Vælg lokation</option>
+            {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+          <select value={i.level} onChange={e => onUpdate({ level: e.target.value as 'junior' | 'senior' })}
+            style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #e4e0f0', fontSize: 11, color: '#1a1520', fontFamily: 'Inter, sans-serif', background: '#f8f7fc', cursor: 'pointer' }}>
+            <option value="junior">Junior</option>
+            <option value="senior">Senior</option>
+          </select>
+          <select value={i.employment_type} onChange={e => onUpdate({ employment_type: e.target.value as 'employed' | 'freelance' })}
+            style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #e4e0f0', fontSize: 11, color: '#1a1520', fontFamily: 'Inter, sans-serif', background: '#f8f7fc', cursor: 'pointer' }}>
+            <option value="employed">Timeansat</option>
+            <option value="freelance">Selvstændig</option>
+          </select>
+          <button onClick={() => onUpdate({ is_active: !i.is_active })}
+            style={{ padding: '5px 10px', borderRadius: 8, fontSize: 11, border: '1px solid #e4e0f0', cursor: 'pointer', background: i.is_active ? '#e8f5ef' : '#fdecea', color: i.is_active ? '#2e8b6a' : '#c0392b', fontFamily: 'Inter, sans-serif' }}>
+            {i.is_active ? 'Aktiv' : 'Inaktiv'}
+          </button>
+          <button onClick={onEditSalary}
+            style={{ padding: '5px 10px', borderRadius: 8, fontSize: 11, border: `1px solid ${hasOverride ? '#6b5ca5' : '#e4e0f0'}`, cursor: 'pointer', background: hasOverride ? '#f2f0f9' : '#f8f7fc', color: hasOverride ? '#6b5ca5' : '#8a85a0', fontFamily: 'Inter, sans-serif', fontWeight: hasOverride ? 600 : 400 }}>
+            {hasOverride ? '★ Løn' : 'Løn'}
+          </button>
+          {saving && <span style={{ fontSize: 10, color: '#8a85a0' }}>Gemmer...</span>}
+        </div>
+      </div>
+
+      {showRoleModal && (
+        <RoleModal
+          instructor={i}
+          onClose={() => setShowRoleModal(false)}
+          onSaved={onRolesChanged}
+        />
+      )}
+    </div>
+  )
+}
+
 export default function SetupPage() {
   const [instructors, setInstructors] = useState<Instructor[]>([])
   const [locations, setLocations] = useState<Location[]>([])
@@ -360,26 +557,44 @@ export default function SetupPage() {
       </Card>
 
       <ClassTypeRulesSection />
+
       <div style={{ marginTop: 24 }}>
         {unassigned.length > 0 && (
           <div style={{ marginBottom: 24 }}>
             <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: '#c0392b', fontWeight: 700, marginBottom: 12 }}>⚠ Ikke tildelt lokation ({unassigned.length})</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10 }}>
-              {unassigned.map(i => <InstructorCard key={i.id} instructor={i} locations={locations} saving={saving === i.id} onUpdate={(u) => updateInstructor(i.id, u)} onEditSalary={() => openSalaryModal(i)} />)}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {unassigned.map(i => (
+                <InstructorCard key={i.id} instructor={i} locations={locations} saving={saving === i.id}
+                  onUpdate={(u) => updateInstructor(i.id, u)}
+                  onEditSalary={() => openSalaryModal(i)}
+                  onRolesChanged={loadData} />
+              ))}
             </div>
           </div>
         )}
+
         <div style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700, marginBottom: 12 }}>København ({cphInstructors.length})</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10 }}>
-            {cphInstructors.map(i => <InstructorCard key={i.id} instructor={i} locations={locations} saving={saving === i.id} onUpdate={(u) => updateInstructor(i.id, u)} onEditSalary={() => openSalaryModal(i)} />)}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {cphInstructors.map(i => (
+              <InstructorCard key={i.id} instructor={i} locations={locations} saving={saving === i.id}
+                onUpdate={(u) => updateInstructor(i.id, u)}
+                onEditSalary={() => openSalaryModal(i)}
+                onRolesChanged={loadData} />
+            ))}
           </div>
         </div>
+
         <div>
           <SalarySection title="Lønsatser, New York" currency="USD" settingsKey="salary_defaults_nyc" defaults={nycSalary} />
           <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700, marginBottom: 12, marginTop: 24 }}>New York ({nycInstructors.length})</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10 }}>
-            {nycInstructors.map(i => <InstructorCard key={i.id} instructor={i} locations={locations} saving={saving === i.id} onUpdate={(u) => updateInstructor(i.id, u)} onEditSalary={() => openSalaryModal(i)} />)}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {nycInstructors.map(i => (
+              <InstructorCard key={i.id} instructor={i} locations={locations} saving={saving === i.id}
+                onUpdate={(u) => updateInstructor(i.id, u)}
+                onEditSalary={() => openSalaryModal(i)}
+                onRolesChanged={loadData} />
+            ))}
           </div>
         </div>
       </div>
@@ -417,59 +632,6 @@ export default function SetupPage() {
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-function InstructorCard({ instructor: i, locations, saving, onUpdate, onEditSalary }: {
-  instructor: Instructor
-  locations: Location[]
-  saving: boolean
-  onUpdate: (updates: Partial<Instructor>) => void
-  onEditSalary: () => void
-}) {
-  const hasOverride = i.salary_rates && i.salary_rates.length > 0
-  return (
-    <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, opacity: i.is_active ? 1 : 0.5 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#6b5ca5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
-          {i.initials}
-        </div>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1520' }}>{i.name}</div>
-          {i.email && <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 2 }}>{i.email}</div>}
-          <div style={{ display: 'flex', gap: 5, marginTop: 4 }}>
-            <Badge type={i.level}>{i.level === 'junior' ? 'Junior' : 'Senior'}</Badge>
-            <Badge type={i.employment_type}>{i.employment_type === 'employed' ? 'Timeansat' : 'Selvstændig'}</Badge>
-          </div>
-        </div>
-      </div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <select value={i.location_id || ''} onChange={e => onUpdate({ location_id: e.target.value || null })}
-          style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #e4e0f0', fontSize: 11, color: '#1a1520', fontFamily: 'Inter, sans-serif', background: '#f8f7fc', cursor: 'pointer' }}>
-          <option value="">Vælg lokation</option>
-          {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-        </select>
-        <select value={i.level} onChange={e => onUpdate({ level: e.target.value as 'junior' | 'senior' })}
-          style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #e4e0f0', fontSize: 11, color: '#1a1520', fontFamily: 'Inter, sans-serif', background: '#f8f7fc', cursor: 'pointer' }}>
-          <option value="junior">Junior</option>
-          <option value="senior">Senior</option>
-        </select>
-        <select value={i.employment_type} onChange={e => onUpdate({ employment_type: e.target.value as 'employed' | 'freelance' })}
-          style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #e4e0f0', fontSize: 11, color: '#1a1520', fontFamily: 'Inter, sans-serif', background: '#f8f7fc', cursor: 'pointer' }}>
-          <option value="employed">Timeansat</option>
-          <option value="freelance">Selvstændig</option>
-        </select>
-        <button onClick={() => onUpdate({ is_active: !i.is_active })}
-          style={{ padding: '5px 10px', borderRadius: 8, fontSize: 11, border: '1px solid #e4e0f0', cursor: 'pointer', background: i.is_active ? '#e8f5ef' : '#fdecea', color: i.is_active ? '#2e8b6a' : '#c0392b', fontFamily: 'Inter, sans-serif' }}>
-          {i.is_active ? 'Aktiv' : 'Inaktiv'}
-        </button>
-        <button onClick={onEditSalary}
-          style={{ padding: '5px 10px', borderRadius: 8, fontSize: 11, border: `1px solid ${hasOverride ? '#6b5ca5' : '#e4e0f0'}`, cursor: 'pointer', background: hasOverride ? '#f2f0f9' : '#f8f7fc', color: hasOverride ? '#6b5ca5' : '#8a85a0', fontFamily: 'Inter, sans-serif', fontWeight: hasOverride ? 600 : 400 }}>
-          {hasOverride ? '★ Løn' : 'Løn'}
-        </button>
-        {saving && <span style={{ fontSize: 10, color: '#8a85a0' }}>Gemmer...</span>}
-      </div>
     </div>
   )
 }
