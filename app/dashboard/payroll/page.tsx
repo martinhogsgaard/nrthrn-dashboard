@@ -13,6 +13,7 @@ interface Session {
   base_rate: number
   bonus: number
   total_amount: number
+  capacity: number
 }
 
 interface PayrollResult {
