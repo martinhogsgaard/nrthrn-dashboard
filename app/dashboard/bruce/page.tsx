@@ -105,7 +105,7 @@ export default function BrucePage() {
       <div style={{ background: data.current_month.is_estimated ? '#fff8e8' : '#e8f5ef', border: `1px solid ${data.current_month.is_estimated ? '#f0d080' : '#b0d8c4'}`, borderRadius: 10, padding: 20, marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1520', marginBottom: 4 }}>
-            {data.current_month.is_estimated ? '⏳ Afventer Bruce-afregning' : '✓ Afregning modtaget'}
+            {data.current_month.is_estimated ? 'Afventer Bruce-afregning' : '✓ Afregning modtaget'}
           </div>
           <div style={{ fontSize: 12, color: '#8a85a0' }}>
             {data.current_month.is_estimated ? 'Beregner med 95 kr./besøg indtil afregning modtages' : `Faktisk pris: ${data.current_month.rate} kr./besøg`}
