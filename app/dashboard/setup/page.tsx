@@ -360,8 +360,6 @@ export default function SetupPage() {
       </Card>
 
       <ClassTypeRulesSection />
-      <SalarySection title="Lønsatser, New York" currency="USD" settingsKey="salary_defaults_nyc" defaults={nycSalary} />
-
       <div style={{ marginTop: 24 }}>
         {unassigned.length > 0 && (
           <div style={{ marginBottom: 24 }}>
@@ -378,7 +376,8 @@ export default function SetupPage() {
           </div>
         </div>
         <div>
-          <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700, marginBottom: 12 }}>New York ({nycInstructors.length})</div>
+          <SalarySection title="Lønsatser, New York" currency="USD" settingsKey="salary_defaults_nyc" defaults={nycSalary} />
+          <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700, marginBottom: 12, marginTop: 24 }}>New York ({nycInstructors.length})</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10 }}>
             {nycInstructors.map(i => <InstructorCard key={i.id} instructor={i} locations={locations} saving={saving === i.id} onUpdate={(u) => updateInstructor(i.id, u)} onEditSalary={() => openSalaryModal(i)} />)}
           </div>
