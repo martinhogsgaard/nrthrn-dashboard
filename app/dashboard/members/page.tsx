@@ -61,8 +61,8 @@ export default function SalgPage() {
   const otherMRR = memberships.filter(m => m.age_group === 'other').reduce((s, m) => s + m.mrr, 0)
 
   // Kategoriser ordrer
-  const isSubscription = (name: string) => ['Classes', '4 Monthly', 'Fitness Space', 'Unlimited', 'Monthly', 'Warrior', 'Sauna'].some(k => name.includes(k))
-  const isClipcard = (name: string) => ['Class (', 'Classes (', 'clip', 'timer', 'First timer'].some(k => name.toLowerCase().includes(k.toLowerCase()))
+  const isSubscription = (name: string) => ['Classes', '4 Monthly', 'Fitness Space', 'Unlimited', 'Monthly', 'Warrior', 'Sauna', 'Revival'].some(k => name.includes(k))
+  const isClipcard = (name: string) => ['Class (', 'Classes (', 'clip', 'timer', 'First timer', 'Massage'].some(k => name.toLowerCase().includes(k.toLowerCase()))
   const isEvent = (name: string) => ['Marathon', 'Event', 'Workshop', 'Saunagus'].some(k => name.includes(k))
 
   const subscriptionOrders = orders.filter(o => isSubscription(o.name))
