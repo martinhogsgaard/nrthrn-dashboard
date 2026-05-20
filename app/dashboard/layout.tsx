@@ -11,7 +11,7 @@ const NAV = [
     children: [
       { href: '/dashboard/overview', label: 'Overblik' },
       { href: '/dashboard/classes', label: 'Hold' },
-      { href: '/dashboard/members', label: 'Salg' },
+      { href: '/dashboard/revenue', label: 'Salg' },
       { href: '/dashboard/payroll', label: 'Løn' },
       { href: '/dashboard/splits', label: 'Split-moms' },
       { href: '/dashboard/bruce', label: 'Bruce' },
