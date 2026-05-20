@@ -38,6 +38,7 @@ export async function GET() {
     .select('amount, status, created_at, category, pricing_option, location_id, currency')
     .eq('status', 'Succeeded')
     .lt('created_at', MT_START + 'T00:00:00Z')
+    .limit(50000)
 
   // Hent MT orders (fra maj 2026)
   const { data: mtData } = await supabase
