@@ -131,7 +131,7 @@ export default function PayrollPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ background: '#f8f7fc' }}>
-                {['Instruktør', 'Type', 'Hold', 'Deltagere', 'Timepris', 'Bonus', 'I alt', ''].map(h => (
+                {['Instruktør', 'Type', 'Hold', 'Deltagere', 'Løn', 'Bonus', 'I alt', ''].map(h => (
                   <th key={h} style={{ fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, padding: '12px 16px', textAlign: 'left', borderBottom: '2px solid #e4e0f0' }}>{h}</th>
                 ))}
               </tr>
