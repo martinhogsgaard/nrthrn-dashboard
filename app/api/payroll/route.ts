@@ -29,13 +29,26 @@ export async function GET(request: Request) {
     // Hvis class_type_rules findes for lokationen bruges de som primær kilde
     // salary_rates bruges kun som fallback hvis ingen class_type_rules er defineret
     const hasClassTypeRules = (classTypeRules || []).length > 0
-    const activeRate = hasClassTypeRules
-      ? {
-          rate_per_class: instructor.level === 'senior' ? 500 : 300,
-          bonus_threshold_1: 8, bonus_threshold_2: 12, bonus_threshold_3: 15,
-          bonus_tier_2: 0, bonus_tier_3: 0, bonus_tier_4: 0,
-        }
-      : instructor.salary_rates
+const personalRate = instructor.salary_rates
+  ?.filter((r: any) => !r.valid_to)
+  ?.sort((a: any, b: any) => new Date(b.valid_from).getTime() - new Date(a.valid_from).getTime())[0]
+const activeRate = hasClassTypeRules
+  ? {
+      rate_per_class: personalRate?.rate_per_class ?? (instructor.level === 'senior' ? 500 : 300),
+      bonus_threshold_1: personalRate?.bonus_threshold_1 ?? 8,
+      bonus_threshold_2: personalRate?.bonus_threshold_2 ?? 12,
+      bonus_threshold_3: personalRate?.bonus_threshold_3 ?? 15,
+      bonus_tier_2: personalRate?.bonus_tier_2 ?? 0,
+      bonus_tier_3: personalRate?.bonus_tier_3 ?? 0,
+      bonus_tier_4: personalRate?.bonus_tier_4 ?? 0,
+    }
+  : personalRate || {
+      rate_per_class: instructor.level === 'senior' ? 500 : 300,
+      bonus_threshold_1: 8, bonus_threshold_2: 12, bonus_threshold_3: 15,
+      bonus_tier_2: instructor.level === 'senior' ? 20 : 15,
+      bonus_tier_3: instructor.level === 'senior' ? 35 : 25,
+      bonus_tier_4: instructor.level === 'senior' ? 50 : 35,
+    }
           ?.filter((r: any) => !r.valid_to)
           ?.sort((a: any, b: any) => new Date(b.valid_from).getTime() - new Date(a.valid_from).getTime())[0]
         || {
