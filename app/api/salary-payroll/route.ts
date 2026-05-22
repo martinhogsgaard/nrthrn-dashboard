@@ -46,7 +46,10 @@ function calcSessionPay(participants: number, baseRate: number, rate: any, defau
 async function buildPayrollLines(month: string) {
   const [year, mon] = month.split('-').map(Number)
   const start = `${month}-01`
-  const end = new Date(year, mon, 0).toISOString().split('T')[0]
+  const today = new Date().toISOString().split('T')[0]
+const end = month === today.slice(0, 7)
+  ? today
+  : new Date(year, mon, 0).toISOString().split('T')[0]
 
   const { data: employees } = await supabase
     .from('employees')
