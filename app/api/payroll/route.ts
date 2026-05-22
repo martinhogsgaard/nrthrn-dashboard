@@ -49,15 +49,6 @@ const activeRate = hasClassTypeRules
       bonus_tier_3: instructor.level === 'senior' ? 35 : 25,
       bonus_tier_4: instructor.level === 'senior' ? 50 : 35,
     }
-          ?.filter((r: any) => !r.valid_to)
-          ?.sort((a: any, b: any) => new Date(b.valid_from).getTime() - new Date(a.valid_from).getTime())[0]
-        || {
-          rate_per_class: instructor.level === 'senior' ? 500 : 300,
-          bonus_threshold_1: 8, bonus_threshold_2: 12, bonus_threshold_3: 15,
-          bonus_tier_2: instructor.level === 'senior' ? 20 : 15,
-          bonus_tier_3: instructor.level === 'senior' ? 35 : 25,
-          bonus_tier_4: instructor.level === 'senior' ? 50 : 35,
-        }
 
     const instructorSessions = (sessions || []).filter((s: any) =>
       s.instructor_profile_id === instructor.mariana_tek_profile_id ||
