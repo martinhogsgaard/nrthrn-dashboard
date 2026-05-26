@@ -702,9 +702,12 @@ export default function SetupPage() {
   }
 
   async function resetSalaryOverride() {
-  if (!editingSalary) return
+  if (!editingSalary) { console.log('editingSalary er null'); return }
+  console.log('Nulstiller:', editingSalary.id)
   setSavingSalary(true)
-  await fetch(`/api/salary-rates?employee_id=${editingSalary.id}`, { method: 'DELETE' })
+  const res = await fetch(`/api/salary-rates?employee_id=${editingSalary.id}`, { method: 'DELETE' })
+  const json = await res.json()
+  console.log('Svar:', json)
   setSavingSalary(false)
   setEditingSalary(null)
   loadData()
