@@ -39,13 +39,14 @@ export default function SalgPage() {
   const [loading, setLoading] = useState(true)
 
   const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-  const today = now.toISOString().split('T')[0]
+  const defaultStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+  const defaultEnd = now.toISOString().split('T')[0]
+  const [period, setPeriod] = useState({ start: defaultStart, end: defaultEnd })
 
   useEffect(() => {
     Promise.all([
       fetch('/api/members?location=48718').then(r => r.json()),
-      fetch(`/api/splits?start=${monthStart}&end=${today}&location=48718`).then(r => r.json()),
+      fetch(`/api/splits?start=${period.start}&end=${period.end}&location=48718`).then(r => r.json()),
     ]).then(([membersData, splitsData]) => {
       setStats(membersData.stats)
       setMemberships(membersData.memberships)
@@ -54,7 +55,7 @@ export default function SalgPage() {
       setTotalOrders(splitsData.orders?.total || 0)
       setLoading(false)
     })
-  }, [])
+  }, [period])
 
   const over30MRR = memberships.filter(m => m.age_group === 'over30').reduce((s, m) => s + m.mrr, 0)
   const under30MRR = memberships.filter(m => m.age_group === 'under30').reduce((s, m) => s + m.mrr, 0)
@@ -121,6 +122,15 @@ export default function SalgPage() {
   return (
     <div>
       <SecLabel>Salg — København</SecLabel>
+
+      <div style={{ display: 'flex', gap: 12, marginBottom: 24, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 11, color: '#8a85a0', fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase' }}>Periode:</div>
+        <input type="date" value={period.start} onChange={e => setPeriod(p => ({ ...p, start: e.target.value }))}
+          style={{ padding: '6px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 12, fontFamily: 'Inter, sans-serif', color: '#1a1520' }} />
+        <span style={{ color: '#8a85a0' }}>→</span>
+        <input type="date" value={period.end} onChange={e => setPeriod(p => ({ ...p, end: e.target.value }))}
+          style={{ padding: '6px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 12, fontFamily: 'Inter, sans-serif', color: '#1a1520' }} />
+      </div>
 
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
