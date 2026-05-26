@@ -547,7 +547,7 @@ function EmployeeCard({ employee: i, locations, saving, onUpdate, onEditSalary, 
   onRolesChanged: () => void
   salaryEmployees: SalaryEmployee[]
 }) {
-  const hasOverride = i.salary_rates && i.salary_rates.length > 0
+  const hasOverride = i.salary_rates && i.salary_rates.filter((r: any) => !r.valid_to).length > 0
   const roles = i.employee_roles || []
   const [showRoleModal, setShowRoleModal] = useState(false)
   const [showSalaryMatch, setShowSalaryMatch] = useState(false)
@@ -723,7 +723,7 @@ export default function SetupPage() {
   function openSalaryModal(employee: Employee) {
     const isNYC = locations.find(l => l.id === employee.location_id)?.mariana_tek_location_id === '48717'
     const defaults = isNYC ? nycSalary : cphSalary
-    const existing = employee.salary_rates?.[0]
+    const existing = employee.salary_rates?.filter((r: any) => !r.valid_to)?.sort((a: any, b: any) => new Date(b.valid_from).getTime() - new Date(a.valid_from).getTime())[0]
     setSalaryOverride({
   rate_per_class: existing?.rate_per_class ?? (employee.level === 'senior' ? defaults.senior_rate : defaults.junior_rate),
   bonus_tier_2: existing?.bonus_tier_2 ?? 0,
