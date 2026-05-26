@@ -45,9 +45,9 @@ const activeRate = hasClassTypeRules
   : personalRate || {
       rate_per_class: instructor.level === 'senior' ? 500 : 300,
       bonus_threshold_1: 8, bonus_threshold_2: 12, bonus_threshold_3: 15,
-      bonus_tier_2: instructor.level === 'senior' ? 20 : 15,
-      bonus_tier_3: instructor.level === 'senior' ? 35 : 25,
-      bonus_tier_4: instructor.level === 'senior' ? 50 : 35,
+      bonus_tier_2: 0,
+      bonus_tier_3: 0,
+      bonus_tier_4: 0,
     }
 
     const instructorSessions = (sessions || []).filter((s: any) =>
