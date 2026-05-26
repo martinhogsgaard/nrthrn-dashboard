@@ -21,7 +21,7 @@ const SLING_POSITIONS: Record<string, string> = {
 }
 
 // Roller der skal have timeløn fra Sling
-const PAID_POSITIONS = ['23059375', '23091207', '23091289'] // Front Desk, Facilities, Gus master
+const PAID_POSITIONS = ['23059375', '23091207', '23091289', '29940166'] // Front Desk, Facilities, Gus master, Assistant Manager
 
 async function getSlingToken() {
   // Brug token fra env — fornyes manuelt indtil dedikeret API bruger er oprettet
