@@ -1,5 +1,4 @@
 'use client'
-
 import { useEffect, useState } from 'react'
 import { SecLabel, formatDKK, Badge } from '@/components/ui'
 
@@ -41,12 +40,238 @@ interface InstructorPayroll {
   payroll: PayrollResult
 }
 
+interface SalaryPreviewLine {
+  date: string
+  time: string
+  class_type: string
+  participants: number
+  holdlon: number
+  bonus: number
+  total: number
+  title: string
+}
+
+interface SalaryPreviewEmployee {
+  name: string
+  sessions: number
+  totalHoldlon: number
+  totalBonus: number
+  total: number
+  lines: SalaryPreviewLine[]
+}
+
+interface SalaryPreview {
+  month: string
+  dispositionDate: string
+  employeeCount: number
+  lineCount: number
+  totalAmount: number
+  employees: SalaryPreviewEmployee[]
+}
+
 function getCurrentMonthRange() {
   const now = new Date()
   const year = now.getFullYear()
   const month = String(now.getMonth() + 1).padStart(2, '0')
   const day = String(now.getDate()).padStart(2, '0')
   return { start: `${year}-${month}-01`, end: `${year}-${month}-${day}` }
+}
+
+function getCurrentMonth() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+function SalaryExportSection({ month }: { month: string }) {
+  const [preview, setPreview] = useState<SalaryPreview | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState<{ sent: number, errors: number, totalAmount: number } | null>(null)
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [dispositionDate, setDispositionDate] = useState('')
+
+  async function loadPreview() {
+    setLoading(true)
+    setResult(null)
+    const res = await fetch(`/api/salary-payroll?month=${month}`)
+    const data = await res.json()
+    setPreview(data)
+    setDispositionDate(data.dispositionDate || '')
+    setLoading(false)
+  }
+
+  async function sendToSalary() {
+    setSending(true)
+    setShowConfirm(false)
+    const res = await fetch('/api/salary-payroll', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ month, dispositionDate })
+    })
+    const data = await res.json()
+    setResult(data)
+    setSending(false)
+    setPreview(null)
+  }
+
+  return (
+    <div style={{ marginTop: 24, background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, overflow: 'hidden' }}>
+      <div style={{ padding: '16px 20px', borderBottom: '1px solid #e4e0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1520' }}>Send løn til Salary.dk</div>
+          <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 2 }}>Sender én linje per hold som kladde til godkendelse i Salary</div>
+        </div>
+        {!preview && !result && (
+          <button onClick={loadPreview} disabled={loading}
+            style={{ background: '#6b5ca5', border: 'none', color: '#fff', padding: '8px 20px', borderRadius: 24, cursor: 'pointer', fontSize: 11, fontFamily: 'Inter, sans-serif', fontWeight: 600, letterSpacing: '.06em' }}>
+            {loading ? 'Henter...' : '↓ Vis lønpreview'}
+          </button>
+        )}
+      </div>
+
+      {/* Resultat efter afsendelse */}
+      {result && (
+        <div style={{ padding: 20 }}>
+          <div style={{ background: result.errors > 0 ? '#fff3d4' : '#e8f5ef', border: `1px solid ${result.errors > 0 ? '#f0d080' : '#b0d8c4'}`, borderRadius: 8, padding: '16px 20px' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: result.errors > 0 ? '#9a6200' : '#2e8b6a', marginBottom: 6 }}>
+              {result.errors > 0 ? '⚠ Delvist sendt' : '✓ Sendt til Salary'}
+            </div>
+            <div style={{ fontSize: 12, color: '#4a4560' }}>
+              {result.sent} lønlinjer sendt · {formatDKK(result.totalAmount)} i alt
+              {result.errors > 0 && ` · ${result.errors} fejlede`}
+            </div>
+            <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 6 }}>
+              Lønkladderne afventer godkendelse i Salary.dk
+            </div>
+          </div>
+          <button onClick={() => setResult(null)} style={{ marginTop: 12, background: '#f8f7fc', border: '1px solid #e4e0f0', color: '#1a1520', padding: '7px 16px', borderRadius: 24, cursor: 'pointer', fontSize: 11, fontFamily: 'Inter, sans-serif' }}>
+            Nulstil
+          </button>
+        </div>
+      )}
+
+      {/* Preview */}
+      {preview && !result && (
+        <div style={{ padding: 20 }}>
+          {/* Overblik */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 20 }}>
+            {[
+              { label: 'Medarbejdere', val: preview.employeeCount },
+              { label: 'Lønlinjer', val: preview.lineCount },
+              { label: 'Samlet beløb', val: formatDKK(preview.totalAmount) },
+            ].map((k, i) => (
+              <div key={i} style={{ background: '#f8f7fc', borderRadius: 8, padding: '12px 16px' }}>
+                <div style={{ fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 6 }}>{k.label}</div>
+                <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 22, fontWeight: 700, color: '#1a1520' }}>{k.val}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Per medarbejder */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+            {preview.employees.map(emp => (
+              <div key={emp.name} style={{ border: '1px solid #e4e0f0', borderRadius: 8, overflow: 'hidden' }}>
+                <div
+                  onClick={() => setExpanded(expanded === emp.name ? null : emp.name)}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', cursor: 'pointer', background: expanded === emp.name ? '#f8f7fc' : '#fff' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#6b5ca5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff' }}>
+                      {emp.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1520' }}>{emp.name}</div>
+                      <div style={{ fontSize: 11, color: '#8a85a0' }}>{emp.sessions} hold · {formatDKK(emp.totalHoldlon)} løn{emp.totalBonus > 0 ? ` + ${formatDKK(emp.totalBonus)} bonus` : ''}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 20, fontWeight: 700, color: '#1a1520' }}>{formatDKK(emp.total)}</div>
+                    <span style={{ color: '#8a85a0', fontSize: 12 }}>{expanded === emp.name ? '▲' : '▼'}</span>
+                  </div>
+                </div>
+                {expanded === emp.name && (
+                  <div style={{ borderTop: '1px solid #e4e0f0' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                      <thead>
+                        <tr style={{ background: '#f8f7fc' }}>
+                          {['Dato', 'Tid', 'Hold', 'Del.', 'Løn', 'Bonus', 'Total'].map(h => (
+                            <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, borderBottom: '1px solid #e4e0f0' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {emp.lines.map((line, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #f0eef8' }}>
+                            <td style={{ padding: '8px 12px', color: '#8a85a0' }}>{line.date}</td>
+                            <td style={{ padding: '8px 12px', color: '#8a85a0' }}>{line.time}</td>
+                            <td style={{ padding: '8px 12px', fontWeight: 500 }}>{line.class_type}</td>
+                            <td style={{ padding: '8px 12px', fontWeight: 700 }}>{line.participants}</td>
+                            <td style={{ padding: '8px 12px' }}>{formatDKK(line.holdlon)}</td>
+                            <td style={{ padding: '8px 12px' }}>
+                              {line.bonus > 0
+                                ? <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 8, background: '#f2f0f9', color: '#6b5ca5', fontWeight: 600 }}>+{formatDKK(line.bonus)}</span>
+                                : '—'}
+                            </td>
+                            <td style={{ padding: '8px 12px', fontWeight: 700 }}>{formatDKK(line.total)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Dispositionsdato + send knap */}
+          <div style={{ background: '#f8f7fc', border: '1px solid #e4e0f0', borderRadius: 8, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+            <label style={{ fontSize: 12, color: '#4a4560' }}>
+              Dispositionsdato
+              <input type="date" value={dispositionDate} onChange={e => setDispositionDate(e.target.value)}
+                style={{ display: 'block', marginTop: 4, padding: '6px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif' }} />
+            </label>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setPreview(null)}
+                style={{ background: '#f8f7fc', border: '1px solid #e4e0f0', color: '#1a1520', padding: '9px 20px', borderRadius: 24, cursor: 'pointer', fontSize: 11, fontFamily: 'Inter, sans-serif' }}>
+                Annuller
+              </button>
+              <button onClick={() => setShowConfirm(true)}
+                style={{ background: '#2e8b6a', border: 'none', color: '#fff', padding: '9px 24px', borderRadius: 24, cursor: 'pointer', fontSize: 11, fontFamily: 'Inter, sans-serif', fontWeight: 600, letterSpacing: '.06em' }}>
+                Send {preview.lineCount} linjer til Salary →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bekræftelsesdialog */}
+      {showConfirm && preview && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 32, width: 440, boxShadow: '0 24px 64px rgba(0,0,0,.2)' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1520', marginBottom: 8 }}>Bekræft afsendelse</div>
+            <div style={{ fontSize: 13, color: '#4a4560', marginBottom: 20, lineHeight: 1.6 }}>
+              Du er ved at sende <strong>{preview.lineCount} lønlinjer</strong> for <strong>{preview.employeeCount} medarbejdere</strong> til Salary.dk som kladder til godkendelse.<br /><br />
+              Samlet beløb: <strong>{formatDKK(preview.totalAmount)}</strong><br />
+              Dispositionsdato: <strong>{dispositionDate}</strong>
+            </div>
+            <div style={{ background: '#fff3d4', border: '1px solid #f0d080', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 11, color: '#9a6200' }}>
+              Lønkladderne skal godkendes manuelt i Salary.dk inden udbetaling.
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={sendToSalary} disabled={sending}
+                style={{ flex: 1, background: '#2e8b6a', border: 'none', color: '#fff', padding: '10px', borderRadius: 24, cursor: 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
+                {sending ? 'Sender...' : 'Ja, send til Salary'}
+              </button>
+              <button onClick={() => setShowConfirm(false)}
+                style={{ flex: 1, background: '#f8f7fc', border: '1px solid #e4e0f0', color: '#1a1520', padding: '10px', borderRadius: 24, cursor: 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif' }}>
+                Annuller
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function PayrollPage() {
@@ -70,6 +295,7 @@ export default function PayrollPage() {
   const totalPayroll = data.reduce((s, i) => s + (i.instructor.employment_type === 'freelance' ? (i.payroll.invoice_total || 0) : i.payroll.subtotal), 0)
   const totalBonus = data.reduce((s, i) => s + i.payroll.bonus_total, 0)
   const totalTime = data.reduce((s, i) => s + i.payroll.time_total, 0)
+  const currentMonth = period.start.slice(0, 7)
 
   function exportCSV() {
     const rows = [
@@ -188,6 +414,9 @@ export default function PayrollPage() {
           </table>
         </div>
       )}
+
+      {/* Salary export sektion */}
+      <SalaryExportSection month={currentMonth} />
     </div>
   )
 }
