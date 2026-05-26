@@ -701,6 +701,15 @@ export default function SetupPage() {
     setSavingSalary(false); setEditingSalary(null); loadData()
   }
 
+  async function resetSalaryOverride() {
+  if (!editingSalary) return
+  setSavingSalary(true)
+  await fetch(`/api/salary-rates?employee_id=${editingSalary.id}`, { method: 'DELETE' })
+  setSavingSalary(false)
+  setEditingSalary(null)
+  loadData()
+}
+
   async function updateEmployee(id: string, updates: Partial<Employee>) {
     setSaving(id)
     await fetch(`/api/instructors/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) })
@@ -713,11 +722,11 @@ export default function SetupPage() {
     const defaults = isNYC ? nycSalary : cphSalary
     const existing = employee.salary_rates?.[0]
     setSalaryOverride({
-      rate_per_class: existing?.rate_per_class || (employee.level === 'senior' ? defaults.senior_rate : defaults.junior_rate),
-      bonus_tier_2: existing?.bonus_tier_2 || (employee.level === 'senior' ? defaults.senior_bonus_tier_2 : defaults.junior_bonus_tier_2),
-      bonus_tier_3: existing?.bonus_tier_3 || (employee.level === 'senior' ? defaults.senior_bonus_tier_3 : defaults.junior_bonus_tier_3),
-      bonus_tier_4: existing?.bonus_tier_4 || (employee.level === 'senior' ? defaults.senior_bonus_tier_4 : defaults.junior_bonus_tier_4),
-    })
+  rate_per_class: existing?.rate_per_class ?? (employee.level === 'senior' ? defaults.senior_rate : defaults.junior_rate),
+  bonus_tier_2: existing?.bonus_tier_2 ?? 0,
+  bonus_tier_3: existing?.bonus_tier_3 ?? 0,
+  bonus_tier_4: existing?.bonus_tier_4 ?? 0,
+})
     setEditingSalary(employee)
   }
 
@@ -823,16 +832,20 @@ export default function SetupPage() {
                 </label>
               ))}
             </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
-              <button onClick={saveSalaryOverride} disabled={savingSalary}
-                style={{ flex: 1, background: '#6b5ca5', border: 'none', color: '#fff', padding: '10px', borderRadius: 24, cursor: 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                {savingSalary ? 'Gemmer...' : 'Gem lønsats'}
-              </button>
-              <button onClick={() => setEditingSalary(null)}
-                style={{ flex: 1, background: '#f8f7fc', border: '1px solid #e4e0f0', color: '#1a1520', padding: '10px', borderRadius: 24, cursor: 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif' }}>
-                Annuller
-              </button>
-            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 24, flexWrap: 'wrap' }}>
+  <button onClick={saveSalaryOverride} disabled={savingSalary}
+    style={{ flex: 1, background: '#6b5ca5', border: 'none', color: '#fff', padding: '10px', borderRadius: 24, cursor: 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
+    {savingSalary ? 'Gemmer...' : 'Gem lønsats'}
+  </button>
+  <button onClick={resetSalaryOverride} disabled={savingSalary}
+    style={{ flex: 1, background: '#fdecea', border: '1px solid #f5c0b8', color: '#c0392b', padding: '10px', borderRadius: 24, cursor: 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif' }}>
+    Nulstil til standard
+  </button>
+  <button onClick={() => setEditingSalary(null)}
+    style={{ flex: 1, background: '#f8f7fc', border: '1px solid #e4e0f0', color: '#1a1520', padding: '10px', borderRadius: 24, cursor: 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif' }}>
+    Annuller
+  </button>
+</div>
           </div>
         </div>
       )}
