@@ -69,6 +69,30 @@ interface SalaryPreview {
   employees: SalaryPreviewEmployee[]
 }
 
+interface SlingShift {
+  date: string
+  position: string
+  duration_minutes: number
+  hours: number
+  amount: number
+}
+
+interface SlingEmployee {
+  employee_id: string
+  name: string
+  hourly_rate: number
+  total_hours: number
+  total_amount: number
+  shifts: SlingShift[]
+}
+
+interface SlingData {
+  month: string
+  employeeCount: number
+  totalAmount: number
+  employees: SlingEmployee[]
+}
+
 function getCurrentMonthRange() {
   const now = new Date()
   const year = now.getFullYear()
@@ -274,6 +298,110 @@ function SalaryExportSection({ month }: { month: string }) {
   )
 }
 
+function SlingSection({ month }: { month: string }) {
+  const [data, setData] = useState<SlingData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch(`/api/sling-shifts?month=${month}`)
+      .then(r => r.json())
+      .then(d => { setData(d); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [month])
+
+  if (loading) return <div style={{ padding: 20, color: '#8a85a0', fontSize: 12 }}>Henter Sling vagter...</div>
+  if (!data || data.employeeCount === 0) return (
+    <div style={{ padding: '16px 20px', color: '#8a85a0', fontSize: 12 }}>Ingen front desk / facilities vagter fundet i Sling</div>
+  )
+
+  return (
+    <div style={{ marginTop: 24, background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, overflow: 'hidden' }}>
+      <div style={{ padding: '16px 20px', borderBottom: '1px solid #e4e0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1520' }}>Front Desk & Facilities — Sling</div>
+          <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 2 }}>{data.employeeCount} medarbejdere · {formatDKK(data.totalAmount)} i alt</div>
+        </div>
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <thead>
+          <tr style={{ background: '#f8f7fc' }}>
+            {['Medarbejder', 'Stilling', 'Timer', 'Timesats', 'I alt', ''].map(h => (
+              <th key={h} style={{ fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, padding: '12px 16px', textAlign: 'left', borderBottom: '2px solid #e4e0f0' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.employees.map(emp => (
+            <>
+              <tr key={emp.employee_id}
+                onClick={() => setExpanded(expanded === emp.employee_id ? null : emp.employee_id)}
+                style={{ cursor: 'pointer', borderBottom: '1px solid #f0eef8' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#f8f7fc')}
+                onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+              >
+                <td style={{ padding: '12px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#2e8b6a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff' }}>
+                      {emp.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                    </div>
+                    <span style={{ fontWeight: 600, color: '#1a1520' }}>{emp.name}</span>
+                  </div>
+                </td>
+                <td style={{ padding: '12px 16px' }}>
+                  <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: '#e8f5ef', color: '#2e8b6a', border: '1px solid #b0d8c4', fontWeight: 600 }}>
+                    {emp.shifts[0]?.position || '—'}
+                  </span>
+                </td>
+                <td style={{ padding: '12px 16px', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 18, fontWeight: 700 }}>{emp.total_hours}</td>
+                <td style={{ padding: '12px 16px', color: '#4a4560' }}>{formatDKK(emp.hourly_rate)}/t</td>
+                <td style={{ padding: '12px 16px', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 20, fontWeight: 700, color: '#1a1520' }}>{formatDKK(emp.total_amount)}</td>
+                <td style={{ padding: '12px 16px', color: '#8a85a0' }}>{expanded === emp.employee_id ? '▲' : '▼'}</td>
+              </tr>
+              {expanded === emp.employee_id && (
+                <tr key={`${emp.employee_id}-detail`} style={{ borderBottom: '1px solid #e4e0f0' }}>
+                  <td colSpan={6} style={{ padding: '0 16px 12px 58px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                      <thead>
+                        <tr>
+                          {['Dato', 'Stilling', 'Timer', 'Beløb'].map(h => (
+                            <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, borderBottom: '1px solid #e4e0f0' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {emp.shifts.map((s, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #f8f7fc' }}>
+                            <td style={{ padding: '6px 8px', color: '#8a85a0' }}>{s.date}</td>
+                            <td style={{ padding: '6px 8px' }}>{s.position}</td>
+                            <td style={{ padding: '6px 8px', fontWeight: 600 }}>{s.hours}</td>
+                            <td style={{ padding: '6px 8px', fontWeight: 600 }}>{formatDKK(s.amount)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+              )}
+            </>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr style={{ background: '#e8f5ef', borderTop: '2px solid #b0d8c4' }}>
+            <td colSpan={2} style={{ padding: '14px 16px', fontWeight: 700, fontSize: 13, color: '#1a1520' }}>I alt</td>
+            <td style={{ padding: '14px 16px', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 20, fontWeight: 700 }}>
+              {Math.round(data.employees.reduce((s, e) => s + e.total_hours, 0) * 10) / 10}
+            </td>
+            <td></td>
+            <td style={{ padding: '14px 16px', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 22, fontWeight: 700, color: '#2e8b6a' }}>{formatDKK(data.totalAmount)}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  )
+}
+
 export default function PayrollPage() {
   const [data, setData] = useState<InstructorPayroll[]>([])
   const [loading, setLoading] = useState(true)
@@ -414,6 +542,9 @@ export default function PayrollPage() {
           </table>
         </div>
       )}
+
+      {/* Sling front desk sektion */}
+      <SlingSection month={currentMonth} />
 
       {/* Salary export sektion */}
       <SalaryExportSection month={currentMonth} />
