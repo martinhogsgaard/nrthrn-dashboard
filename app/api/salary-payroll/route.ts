@@ -45,64 +45,47 @@ function calcSessionPay(participants: number, baseRate: number, rate: any, defau
 
 async function buildPayrollLines(month: string) {
   const [year, mon] = month.split('-').map(Number)
-  const start = `${month}-01`
   const today = new Date().toISOString().split('T')[0]
-const end = month === today.slice(0, 7)
-  ? today
-  : new Date(year, mon, 0).toISOString().split('T')[0]
+  const end = month === today.slice(0, 7)
+    ? today
+    : new Date(year, mon, 0).toISOString().split('T')[0]
+  const start = `${month}-01`
 
+  // Hent løn via samme API som lønsiden
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://nrthrn-dashboard.vercel.app'
+  const res = await fetch(`${baseUrl}/api/payroll?start=${start}&end=${end}&location=48718`)
+  const payrollData = await res.json()
+
+  // Hent salary_employee_id mapping
   const { data: employees } = await supabase
     .from('employees')
-    .select('id, name, level, salary_employee_id, salary_rates(*), employee_roles(*)')
+    .select('id, name, salary_employee_id')
     .eq('is_active', true)
     .not('salary_employee_id', 'is', null)
 
-  const { data: sessions } = await supabase
-    .from('sessions_cache')
-    .select('instructor_name, class_type, participants, date, time, capacity')
-    .gte('date', start)
-    .lte('date', end)
-    .eq('is_cancelled', false)
-
-  const { data: settings } = await supabase
-    .from('settings')
-    .select('key, value')
-    .in('key', ['salary_defaults'])
-
-  const defaults = settings?.find(s => s.key === 'salary_defaults')?.value || {}
+  const salaryMap = Object.fromEntries((employees || []).map(e => [e.name.toLowerCase().trim(), e.salary_employee_id]))
 
   const lines: any[] = []
 
-  for (const emp of employees || []) {
-    const hasInstructorRole = emp.employee_roles?.some((r: any) => r.role === 'instructor')
-    if (!hasInstructorRole) continue
+  for (const instructor of (payrollData.payroll || [])) {
+    const salaryId = salaryMap[instructor.instructor.name.toLowerCase().trim()]
+    if (!salaryId) continue
+    if (instructor.instructor.employment_type === 'freelance') continue
 
-    const empSessions = (sessions || []).filter(s =>
-      s.instructor_name?.toLowerCase().trim() === emp.name?.toLowerCase().trim()
-    )
-    if (empSessions.length === 0) continue
-
-    const rate = emp.salary_rates?.[0]
-    const isSenior = emp.level === 'senior'
-    const baseRate = rate?.rate_per_class || (isSenior ? defaults.senior_rate : defaults.junior_rate) || 300
-
-    for (const s of empSessions) {
-      const { holdlon, bonus } = calcSessionPay(s.participants, baseRate, rate, defaults)
-      const total = holdlon + bonus
-      const bonusText = bonus > 0 ? ` + ${bonus} bonus` : ''
-      const title = `${s.date} ${s.time} ${s.class_type} — ${s.participants} del. (${holdlon}${bonusText} kr.)`
-
+    for (const s of instructor.sessions) {
+      const bonusText = s.bonus > 0 ? ` + ${s.bonus} bonus` : ''
+      const title = `${s.date} ${s.time || ''} ${s.class_name} — ${s.participants} del. (${s.base_rate}${bonusText} kr.)`.trim()
       lines.push({
-        employee_id: emp.id,
-        name: emp.name,
-        salary_employee_id: emp.salary_employee_id,
+        employee_id: instructor.instructor.id,
+        name: instructor.instructor.name,
+        salary_employee_id: salaryId,
         date: s.date,
-        time: s.time,
-        class_type: s.class_type,
+        time: s.time || '',
+        class_type: s.class_name,
         participants: s.participants,
-        holdlon,
-        bonus,
-        total,
+        holdlon: s.base_rate,
+        bonus: s.bonus,
+        total: s.total_amount,
         title,
       })
     }
