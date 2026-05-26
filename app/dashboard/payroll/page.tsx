@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { SecLabel, formatDKK, Badge } from '@/components/ui'
 
 interface Session {
@@ -333,8 +333,8 @@ function SlingSection({ month }: { month: string }) {
         </thead>
         <tbody>
           {data.employees.map(emp => (
-            <>
-              <tr key={emp.employee_id}
+            <React.Fragment key={emp.employee_id}>
+              <tr
                 onClick={() => setExpanded(expanded === emp.employee_id ? null : emp.employee_id)}
                 style={{ cursor: 'pointer', borderBottom: '1px solid #f0eef8' }}
                 onMouseEnter={e => (e.currentTarget.style.background = '#f8f7fc')}
@@ -383,7 +383,7 @@ function SlingSection({ month }: { month: string }) {
                   </td>
                 </tr>
               )}
-            </>
+            </React.Fragment>
           ))}
         </tbody>
         <tfoot>
