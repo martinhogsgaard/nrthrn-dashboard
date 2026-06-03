@@ -277,25 +277,49 @@ export default function SplitsPage() {
         <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
           <div style={{ fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 16 }}>Nye køb — klipkort og engangskøb</div>
           {data.orders.breakdown.map((o, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #f0eef8' }}>
+            <div key={i} style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 8px', borderBottom: '1px solid #f0eef8',
+              borderRadius: 4, marginBottom: 2,
+              background: o.age_group === 'under30' ? '#f0faf5' : '#faf8ff',
+            }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{
                   fontSize: 9, padding: '1px 6px', borderRadius: 8, fontWeight: 600,
                   background: o.age_group === 'over30' ? '#f2f0f9' : o.age_group === 'under30' ? '#e8f5ef' : '#f0f0f0',
-                  color: o.age_group === 'over30' ? '#6b5ca5' : o.age_group === 'under30' ? '#2e8b6a' : '#666',
+                  color: o.age_group === 'over30' ? '#6b5ca5' : o.age_group === 'under30' ? '#2e8b6a' : '#888',
                 }}>
                   {o.age_group === 'over30' ? '30+' : o.age_group === 'under30' ? 'U30' : 'Andet'}
                 </span>
                 <span style={{ fontSize: 12, color: '#1a1520' }}>{o.name} ×{o.count}</span>
               </div>
-              <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 16, fontWeight: 700 }}>{formatDKK(o.total)}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {o.age_group !== 'under30' && (
+                  <span style={{ fontSize: 10, color: '#9a6200' }}>+moms {formatDKK(Math.round(o.total * 0.25))}</span>
+                )}
+                <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 16, fontWeight: 700 }}>{formatDKK(o.total)}</span>
+              </div>
             </div>
           ))}
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 0' }}>
-            <span style={{ fontSize: 12, fontWeight: 700 }}>Total nye køb</span>
-            <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 22, fontWeight: 700 }}>{formatDKK(data.orders.total)}</span>
+
+          {/* Opsummering */}
+          <div style={{ marginTop: 12, borderTop: '2px solid #e4e0f0', paddingTop: 12 }}>
+            {[
+              { label: 'Over 30 (momspligtig)', val: formatDKK(data.orders.over30 - (data.orders.breakdown.filter(o => o.age_group === 'other').reduce((s, o) => s + o.total, 0))), color: '#6b5ca5' },
+              { label: 'Andet (momspligtig)', val: formatDKK(data.orders.breakdown.filter(o => o.age_group === 'other').reduce((s, o) => s + o.total, 0)), color: '#888' },
+              { label: '+ Moms 25%', val: formatDKK(data.orders.vat), color: '#9a6200', indent: true },
+              { label: 'Under 30 (momsfri)', val: formatDKK(data.orders.under30), color: '#2e8b6a' },
+            ].map((r, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f0eef8', paddingLeft: r.indent ? 16 : 0 }}>
+                <span style={{ fontSize: 11, color: '#4a4560' }}>{r.label}</span>
+                <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 16, fontWeight: 700, color: r.color }}>{r.val}</span>
+              </div>
+            ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 0' }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>Total nye køb</span>
+              <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 22, fontWeight: 700 }}>{formatDKK(data.orders.total)}</span>
+            </div>
           </div>
- </div>
+        </div>
 
         {/* Bruce */}
         <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
