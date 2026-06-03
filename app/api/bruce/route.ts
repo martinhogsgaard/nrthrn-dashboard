@@ -90,11 +90,22 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const body = await request.json()
-  const { month, rate_per_visit, actual_visits, notes } = body
+  const { month, rate_per_visit, actual_visits, visits_no_vat, visits_vat, no_shows_no_vat, no_shows_vat, notes } = body
 
   const { data, error } = await supabase
     .from('bruce_rates')
-    .upsert({ month, rate_per_visit, ...(actual_visits !== undefined ? { actual_visits } : {}), is_estimated: false, notes, updated_at: new Date().toISOString() }, { onConflict: 'month' })
+    .upsert({ 
+  month, 
+  rate_per_visit, 
+  ...(actual_visits !== undefined ? { actual_total: actual_visits } : {}),
+  ...(visits_no_vat !== undefined ? { visits_no_vat } : {}),
+  ...(visits_vat !== undefined ? { visits_vat } : {}),
+  ...(no_shows_no_vat !== undefined ? { no_shows_no_vat } : {}),
+  ...(no_shows_vat !== undefined ? { no_shows_vat } : {}),
+  is_estimated: false, 
+  notes, 
+  updated_at: new Date().toISOString() 
+}, { onConflict: 'month' })
     .select()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

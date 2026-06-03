@@ -42,9 +42,16 @@ function EditMonthModal({ month, currentRate, currentVisits, onClose, onSaved }:
   onSaved: () => void
 }) {
   const [rate, setRate] = useState(currentRate)
-  const [visits, setVisits] = useState(currentVisits)
+  const [visitsNoVat, setVisitsNoVat] = useState(0)
+  const [visitsVat, setVisitsVat] = useState(0)
+  const [noShowsNoVat, setNoShowsNoVat] = useState(0)
+  const [noShowsVat, setNoShowsVat] = useState(0)
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
+
+  const totalVisits = visitsNoVat + visitsVat + noShowsNoVat + noShowsVat
+  const totalAmount = Math.round(totalVisits * rate)
+  const vatAmount = Math.round((visitsVat + noShowsVat) * rate * 0.25)
 
   async function save() {
     setSaving(true)
@@ -54,7 +61,11 @@ function EditMonthModal({ month, currentRate, currentVisits, onClose, onSaved }:
       body: JSON.stringify({
         month: month.month,
         rate_per_visit: rate,
-        actual_visits: visits,
+        actual_visits: totalVisits,
+        visits_no_vat: visitsNoVat,
+        visits_vat: visitsVat,
+        no_shows_no_vat: noShowsNoVat,
+        no_shows_vat: noShowsVat,
         notes,
       })
     })
@@ -63,38 +74,75 @@ function EditMonthModal({ month, currentRate, currentVisits, onClose, onSaved }:
     onClose()
   }
 
+  const fieldStyle = { display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4, boxSizing: 'border-box' as const }
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 420, boxShadow: '0 24px 64px rgba(0,0,0,.2)' }}>
+      <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 480, boxShadow: '0 24px 64px rgba(0,0,0,.2)', maxHeight: '90vh', overflowY: 'auto' }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1520', marginBottom: 4 }}>
-          Rediger Bruce afregning — {month.month_label}
+          Bruce afregning — {month.month_label}
         </div>
         <div style={{ fontSize: 12, color: '#8a85a0', marginBottom: 20 }}>
-          Indtast faktiske tal fra Bruce afregning
+          Indtast tal direkte fra Bruce fakturaen
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+        <label style={{ fontSize: 12, color: '#4a4560', display: 'block', marginBottom: 14 }}>
+          Pris pr. besøg (kr.)
+          <input type="number" step="0.01" value={rate} onChange={e => setRate(Number(e.target.value))} style={fieldStyle} />
+        </label>
+
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#8a85a0', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 10, marginTop: 4 }}>Visits</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
           <label style={{ fontSize: 12, color: '#4a4560' }}>
-            Antal Bruce-besøg
-            <input type="number" value={visits} onChange={e => setVisits(Number(e.target.value))}
-              style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4, boxSizing: 'border-box' as const }} />
+            Visits — 0% moms
+            <input type="number" value={visitsNoVat} onChange={e => setVisitsNoVat(Number(e.target.value))} style={fieldStyle} />
           </label>
           <label style={{ fontSize: 12, color: '#4a4560' }}>
-            Pris pr. besøg (kr.)
-            <input type="number" value={rate} onChange={e => setRate(Number(e.target.value))}
-              style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4, boxSizing: 'border-box' as const }} />
+            Visits — 25% moms
+            <input type="number" value={visitsVat} onChange={e => setVisitsVat(Number(e.target.value))} style={fieldStyle} />
           </label>
-          <div style={{ background: '#f8f7fc', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#4a4560' }}>
-            Samlet afregning: <strong>{formatDKK(Math.round(visits * rate))}</strong>
+        </div>
+
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#8a85a0', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 10 }}>No shows</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+          <label style={{ fontSize: 12, color: '#4a4560' }}>
+            No shows — 0% moms
+            <input type="number" value={noShowsNoVat} onChange={e => setNoShowsNoVat(Number(e.target.value))} style={fieldStyle} />
+          </label>
+          <label style={{ fontSize: 12, color: '#4a4560' }}>
+            No shows — 25% moms
+            <input type="number" value={noShowsVat} onChange={e => setNoShowsVat(Number(e.target.value))} style={fieldStyle} />
+          </label>
+        </div>
+
+        <div style={{ background: '#f8f7fc', borderRadius: 8, padding: '12px 16px', marginBottom: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+            <span style={{ fontSize: 12, color: '#8a85a0' }}>Total besøg</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#1a1520' }}>{totalVisits}</span>
           </div>
-          <label style={{ fontSize: 12, color: '#4a4560' }}>
-            Note (valgfri)
-            <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Fx fakturanummer"
-              style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4, boxSizing: 'border-box' as const }} />
-          </label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+            <span style={{ fontSize: 12, color: '#8a85a0' }}>Ekskl. moms</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#1a1520' }}>{formatDKK(totalAmount)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+            <span style={{ fontSize: 12, color: '#8a85a0' }}>Moms (25%)</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#1a1520' }}>{formatDKK(vatAmount)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid #e4e0f0', marginTop: 4 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#1a1520' }}>I alt inkl. moms</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#6b5ca5' }}>{formatDKK(totalAmount + vatAmount)}</span>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-          <button onClick={save} disabled={saving}
-            style={{ flex: 1, background: '#2e8b6a', border: 'none', color: '#fff', padding: '10px', borderRadius: 24, cursor: 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
+
+        <label style={{ fontSize: 12, color: '#4a4560', display: 'block', marginBottom: 20 }}>
+          Note (valgfri)
+          <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Fx fakturanummer 2523-17"
+            style={fieldStyle} />
+        </label>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={save} disabled={saving || totalVisits === 0}
+            style={{ flex: 1, background: totalVisits === 0 ? '#ccc' : '#2e8b6a', border: 'none', color: '#fff', padding: '10px', borderRadius: 24, cursor: totalVisits > 0 ? 'pointer' : 'not-allowed', fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
             {saving ? 'Gemmer...' : 'Gem afregning'}
           </button>
           <button onClick={onClose}
@@ -110,11 +158,6 @@ function EditMonthModal({ month, currentRate, currentVisits, onClose, onSaved }:
 export default function BrucePage() {
   const [data, setData] = useState<BruceData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [editingRate, setEditingRate] = useState(false)
-  const [newRate, setNewRate] = useState(95)
-  const [notes, setNotes] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
   const [editingMonth, setEditingMonth] = useState<BruceMonth | null>(null)
 
   useEffect(() => { loadData() }, [])
@@ -124,23 +167,7 @@ export default function BrucePage() {
     const res = await fetch('/api/bruce?location=48718')
     const json = await res.json()
     setData(json)
-    setNewRate(json.current_month?.rate || 95)
     setLoading(false)
-  }
-
-  async function saveRate() {
-    if (!data) return
-    setSaving(true)
-    await fetch('/api/bruce', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ month: data.current_month.month, rate_per_visit: newRate, notes })
-    })
-    setSaving(false)
-    setSaved(true)
-    setEditingRate(false)
-    setTimeout(() => setSaved(false), 3000)
-    loadData()
   }
 
   if (loading || !data) return <div style={{ padding: 40, color: '#8a85a0', textAlign: 'center' }}>Henter Bruce data...</div>
@@ -176,44 +203,6 @@ export default function BrucePage() {
         ))}
       </div>
 
-      <div style={{ background: data.current_month.is_estimated ? '#fff8e8' : '#e8f5ef', border: `1px solid ${data.current_month.is_estimated ? '#f0d080' : '#b0d8c4'}`, borderRadius: 10, padding: 20, marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1520', marginBottom: 4 }}>
-            {data.current_month.is_estimated ? 'Afventer Bruce-afregning' : '✓ Afregning modtaget'}
-          </div>
-          <div style={{ fontSize: 12, color: '#8a85a0' }}>
-            {data.current_month.is_estimated ? 'Beregner med 95 kr./besøg indtil afregning modtages' : `Faktisk pris: ${data.current_month.rate} kr./besøg`}
-          </div>
-        </div>
-        {!editingRate ? (
-          <button onClick={() => setEditingRate(true)}
-            style={{ background: '#1a1228', border: 'none', color: '#fff', padding: '9px 20px', borderRadius: 24, cursor: 'pointer', fontSize: 11, fontFamily: 'Inter, sans-serif', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase' as const, whiteSpace: 'nowrap' as const }}>
-            Indtast afregning
-          </button>
-        ) : (
-          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
-            <label style={{ fontSize: 10, color: '#8a85a0' }}>
-              Pris pr. besøg (kr.)
-              <input type="number" value={newRate} onChange={e => setNewRate(Number(e.target.value))}
-                style={{ display: 'block', padding: '6px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', width: 80, marginTop: 4 }} />
-            </label>
-            <label style={{ fontSize: 10, color: '#8a85a0' }}>
-              Note (valgfri)
-              <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Fx faktura nr."
-                style={{ display: 'block', padding: '6px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 12, fontFamily: 'Inter, sans-serif', width: 140, marginTop: 4 }} />
-            </label>
-            <button onClick={saveRate} disabled={saving}
-              style={{ background: '#2e8b6a', border: 'none', color: '#fff', padding: '9px 20px', borderRadius: 24, cursor: 'pointer', fontSize: 11, fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-              {saving ? 'Gemmer...' : 'Gem'}
-            </button>
-            <button onClick={() => setEditingRate(false)}
-              style={{ background: 'transparent', border: '1px solid #e4e0f0', color: '#8a85a0', padding: '9px 14px', borderRadius: 24, cursor: 'pointer', fontSize: 11, fontFamily: 'Inter, sans-serif' }}>
-              Annuller
-            </button>
-          </div>
-        )}
-      </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 20 }}>
         <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
           <div style={{ fontSize: 9, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 20 }}>Historisk Bruce-indtægt</div>
@@ -245,7 +234,6 @@ export default function BrucePage() {
                 </div>
               </div>
 
-              {/* Historik tabel med rediger knap */}
               <div style={{ marginTop: 20, borderTop: '1px solid #e4e0f0', paddingTop: 16 }}>
                 <div style={{ fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 12 }}>Månedsoversigt</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -262,7 +250,7 @@ export default function BrucePage() {
                         </span>
                         <button onClick={() => setEditingMonth(h)}
                           style={{ fontSize: 10, padding: '4px 10px', borderRadius: 8, border: '1px solid #e4e0f0', background: '#fff', color: '#6b5ca5', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
-                          Ret
+                          {h.is_estimated ? 'Indtast afregning' : 'Ret'}
                         </button>
                       </div>
                     </div>
@@ -277,7 +265,7 @@ export default function BrucePage() {
           <div style={{ padding: '16px 20px', borderBottom: '1px solid #e4e0f0' }}>
             <div style={{ fontSize: 9, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700 }}>Sessions med Bruce-kunder</div>
           </div>
-          <div style={{ overflowY: 'auto', maxHeight: 400 }}>
+          <div style={{ overflowY: 'auto', maxHeight: 500 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: '#f8f7fc' }}>
