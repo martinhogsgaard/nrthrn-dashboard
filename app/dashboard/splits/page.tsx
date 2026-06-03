@@ -251,8 +251,8 @@ export default function SplitsPage() {
         </div>
       </div>
 
-      {/* MRR og Nye køb side om side */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+      {/* MRR, Nye køb og Bruce */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
 
         {/* MRR */}
         <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
@@ -295,29 +295,43 @@ export default function SplitsPage() {
             <span style={{ fontSize: 12, fontWeight: 700 }}>Total nye køb</span>
             <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 22, fontWeight: 700 }}>{formatDKK(data.orders.total)}</span>
           </div>
-        </div>
-      </div>
+ </div>
 
-{/* Bruce */}
-      {data.bruce && data.bruce.total > 0 && (
-        <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24, marginBottom: 20 }}>
-          <div style={{ fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 16 }}>Bruce — partneraftale ({data.bruce.months} måned{data.bruce.months !== 1 ? 'er' : ''})</div>
-          {[
-            { label: `Over 30 — visits/no shows m. moms`, val: formatDKK(data.bruce.over30), color: '#6b5ca5' },
-            { label: '+ Moms 25%', val: formatDKK(data.bruce.vat), color: '#9a6200', indent: true },
-            { label: `Under 30 — visits/no shows u. moms`, val: formatDKK(data.bruce.under30), color: '#2e8b6a' },
-          ].map((r, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f0eef8', paddingLeft: r.indent ? 16 : 0 }}>
-              <span style={{ fontSize: 12, color: '#4a4560' }}>{r.label}</span>
-              <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 18, fontWeight: 700, color: r.color }}>{r.val}</span>
-            </div>
-          ))}
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 0' }}>
-            <span style={{ fontSize: 12, fontWeight: 700 }}>Total Bruce</span>
-            <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 22, fontWeight: 700 }}>{formatDKK(data.bruce.total)}</span>
+        {/* Bruce */}
+        <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div style={{ fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700 }}>Bruce — partneraftale</div>
+            {data.bruce.total === 0 && (
+              <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 8, background: '#fff3d4', color: '#9a6200', fontWeight: 600, border: '1px solid #f0d080' }}>
+                ⚠ Ingen afregning
+              </span>
+            )}
           </div>
+          {data.bruce.total === 0 ? (
+            <div style={{ fontSize: 12, color: '#8a85a0', padding: '20px 0' }}>
+              Indtast Bruce afregning for denne periode på Bruce-siden.
+            </div>
+          ) : (
+            <>
+              {[
+                { label: `Over 30 — m. moms`, val: formatDKK(data.bruce.over30), color: '#6b5ca5' },
+                { label: '+ Moms 25%', val: formatDKK(data.bruce.vat), color: '#9a6200', indent: true },
+                { label: `Under 30 — u. moms`, val: formatDKK(data.bruce.under30), color: '#2e8b6a' },
+              ].map((r, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f0eef8', paddingLeft: r.indent ? 16 : 0 }}>
+                  <span style={{ fontSize: 12, color: '#4a4560' }}>{r.label}</span>
+                  <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 18, fontWeight: 700, color: r.color }}>{r.val}</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 0' }}>
+                <span style={{ fontSize: 12, fontWeight: 700 }}>Total Bruce</span>
+                <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 22, fontWeight: 700 }}>{formatDKK(data.bruce.total)}</span>
+              </div>
+            </>
+          )}
         </div>
-      )}
+
+      </div>
 
       {/* Selvstændige instruktører */}
       <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700, marginBottom: 12 }}>
