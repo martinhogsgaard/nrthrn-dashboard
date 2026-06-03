@@ -64,7 +64,7 @@ export default function SplitsPage() {
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
 
-  useEffect(() => { loadData() }, [period])
+  useEffect(() => { loadData() }, [])
 
   async function loadData() {
     setLoading(true)
@@ -231,6 +231,10 @@ export default function SplitsPage() {
         <span style={{ color: '#8a85a0' }}>→</span>
         <input type="date" value={period.end} onChange={e => setPeriod(p => ({ ...p, end: e.target.value }))}
           style={{ padding: '6px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 12, fontFamily: 'Inter, sans-serif', color: '#1a1520' }} />
+        <button onClick={loadData}
+          style={{ padding: '6px 16px', background: '#6b5ca5', border: 'none', color: '#fff', borderRadius: 8, fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600, cursor: 'pointer' }}>
+          Hent data
+        </button>
       </div>
 
       {/* Samlet moms oversigt */}
