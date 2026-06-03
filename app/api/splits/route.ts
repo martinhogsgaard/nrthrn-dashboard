@@ -40,8 +40,9 @@ export async function GET(request: Request) {
   const totalMRR = mrrOver30 + mrrUnder30 + mrrOther
 
   // Orders fra cache
-  const ordersOver30 = (orders || []).filter(o => !o.summary?.includes('under 30')).reduce((s, o) => s + Number(o.total), 0)
-  const ordersUnder30 = (orders || []).filter(o => o.summary?.includes('under 30')).reduce((s, o) => s + Number(o.total), 0)
+  const isUnder30 = (summary: string | null) => summary?.includes('under 30') || summary?.includes('under30') || false
+  const ordersOver30 = (orders || []).filter(o => !isUnder30(o.summary)).reduce((s, o) => s + Number(o.total), 0)
+  const ordersUnder30 = (orders || []).filter(o => isUnder30(o.summary)).reduce((s, o) => s + Number(o.total), 0)
   const totalOrders = (orders || []).reduce((s, o) => s + Number(o.total), 0)
 
   // Breakdown pr. produkt
@@ -55,7 +56,7 @@ export async function GET(request: Request) {
 
   const ordersBreakdown = Object.entries(ordersGrouped).map(([name, d]: [string, any]) => ({
     name, count: d.count, total: Math.round(d.total),
-    age_group: name.includes('30+') ? 'over30' : name.includes('under 30') ? 'under30' : 'other',
+    age_group: name.includes('30+') ? 'over30' : (name.includes('under 30') || name.includes('under30')) ? 'under30' : 'other',
   })).sort((a, b) => b.total - a.total)
 
   // Split
