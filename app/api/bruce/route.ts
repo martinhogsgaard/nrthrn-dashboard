@@ -52,6 +52,7 @@ export async function GET(request: Request) {
     if (monthlyData[month]) {
       monthlyData[month].rate = r.rate_per_visit
       monthlyData[month].is_estimated = r.is_estimated
+      if (r.actual_total) monthlyData[month].visits = r.actual_total
     }
   })
 
