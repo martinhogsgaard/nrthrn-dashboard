@@ -40,6 +40,7 @@ interface SplitsData {
   split_pct: { over30: number, under30: number }
   mrr: { total: number, over30: number, under30: number, vat: number }
   orders: { total: number, over30: number, under30: number, vat: number, breakdown: OrderItem[] }
+  bruce: { total: number, over30: number, under30: number, vat: number, months: number }
   total_revenue: { total: number, over30: number, under30: number, vat: number }
   sessions: { total: number, participants: number }
   freelancers: FreelancerData[]
@@ -237,7 +238,7 @@ export default function SplitsPage() {
         <div style={{ fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700, marginBottom: 16 }}>Samlet moms at afregne denne periode</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 20 }}>
           {[
-            { label: 'Total omsætning', val: formatDKK(data.total_revenue.total), sub: `MRR + nye køb` },
+            { label: 'Total omsætning', val: formatDKK(data.total_revenue.total), sub: `MRR + nye køb + Bruce` },
             { label: 'Momspligtig (over 30)', val: formatDKK(data.total_revenue.over30), sub: `${data.split_pct.over30}% af omsætning`, color: '#6b5ca5' },
             { label: 'Moms at afregne (25%)', val: formatDKK(data.total_revenue.vat), sub: `Skal angives til SKAT`, color: '#9a6200' },
           ].map((k, i) => (
@@ -296,6 +297,27 @@ export default function SplitsPage() {
           </div>
         </div>
       </div>
+
+{/* Bruce */}
+      {data.bruce && data.bruce.total > 0 && (
+        <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24, marginBottom: 20 }}>
+          <div style={{ fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 16 }}>Bruce — partneraftale ({data.bruce.months} måned{data.bruce.months !== 1 ? 'er' : ''})</div>
+          {[
+            { label: `Over 30 — visits/no shows m. moms`, val: formatDKK(data.bruce.over30), color: '#6b5ca5' },
+            { label: '+ Moms 25%', val: formatDKK(data.bruce.vat), color: '#9a6200', indent: true },
+            { label: `Under 30 — visits/no shows u. moms`, val: formatDKK(data.bruce.under30), color: '#2e8b6a' },
+          ].map((r, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f0eef8', paddingLeft: r.indent ? 16 : 0 }}>
+              <span style={{ fontSize: 12, color: '#4a4560' }}>{r.label}</span>
+              <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 18, fontWeight: 700, color: r.color }}>{r.val}</span>
+            </div>
+          ))}
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 0' }}>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>Total Bruce</span>
+            <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 22, fontWeight: 700 }}>{formatDKK(data.bruce.total)}</span>
+          </div>
+        </div>
+      )}
 
       {/* Selvstændige instruktører */}
       <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700, marginBottom: 12 }}>
