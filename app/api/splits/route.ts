@@ -149,9 +149,9 @@ export async function GET(request: Request) {
     period: { start, end },
     split_pct: { over30: over30Pct, under30: under30Pct },
     mrr: { total: Math.round(totalMRR), over30: Math.round(mrrOver30 + mrrOther), under30: Math.round(mrrUnder30), vat: Math.round((mrrOver30 + mrrOther) * 0.25) },
+    orders: { total: Math.round(totalOrders), over30: Math.round(ordersOver30), under30: Math.round(ordersUnder30), vat: Math.round(ordersOver30 * 0.25), breakdown: ordersBreakdown },
     bruce: { total: Math.round(bruceTotal), over30: Math.round(bruceOver30), under30: Math.round(bruceUnder30), vat: bruceVat, months: bruceRates?.length || 0 },
-    mrr: { total: Math.round(totalMRR), over30: Math.round(mrrOver30 + mrrOther), under30: Math.round(mrrUnder30), vat: Math.round((mrrOver30 + mrrOther) * 0.25) },
-orders: { total: Math.round(totalOrders), over30: Math.round(ordersOver30), under30: Math.round(ordersUnder30), vat: Math.round(ordersOver30 * 0.25), breakdown: ordersBreakdown },
+    total_revenue: { total: Math.round(totalRevenue), over30: Math.round(totalOver30), under30: Math.round(totalUnder30), vat: vatAmount },
     sessions: { total: sessions?.length || 0, participants: sessions?.reduce((s, x) => s + (x.participants || 0), 0) || 0 },
     freelancers: freelancerData,
   })
