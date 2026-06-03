@@ -14,18 +14,23 @@ export async function GET(request: Request) {
   const end = searchParams.get('end') || now.toISOString().split('T')[0]
 
   // Hent alt fra Supabase parallelt — ingen live MT-kald
+  const startMonth = start.slice(0, 7) + '-01'
+  const endMonth = end.slice(0, 7) + '-01'
+
   const [
     { data: memberships },
     { data: orders },
     { data: sessions },
     { data: instructors },
     { data: settingsData },
+    { data: bruceRates },
   ] = await Promise.all([
     supabase.from('membership_cache').select('*').eq('purchase_location_id', location).eq('status', 'active').gt('next_charge_date', new Date().toISOString()),
     supabase.from('orders_cache').select('total, summary').eq('location_id', location).gte('date_placed', start).lte('date_placed', end + 'T23:59:59Z'),
     supabase.from('sessions_cache').select('*').eq('location_id', location).gte('date', start).lte('date', end),
     supabase.from('employees').select('*, salary_rates(*)').eq('is_active', true),
     supabase.from('settings').select('*').eq('key', 'salary_defaults').single(),
+    supabase.from('bruce_rates').select('*').gte('month', startMonth).lte('month', endMonth).eq('is_estimated', false),
   ])
 
   // MRR
@@ -54,8 +59,14 @@ export async function GET(request: Request) {
   })).sort((a, b) => b.total - a.total)
 
   // Split
-  const totalOver30 = mrrOver30 + mrrOther + ordersOver30
-  const totalUnder30 = mrrUnder30 + ordersUnder30
+  // Bruce
+  const bruceOver30 = (bruceRates || []).reduce((s, r) => s + ((r.visits_vat || 0) + (r.no_shows_vat || 0)) * r.rate_per_visit, 0)
+  const bruceUnder30 = (bruceRates || []).reduce((s, r) => s + ((r.visits_no_vat || 0) + (r.no_shows_no_vat || 0)) * r.rate_per_visit, 0)
+  const bruceTotal = bruceOver30 + bruceUnder30
+  const bruceVat = Math.round(bruceOver30 * 0.25)
+
+  const totalOver30 = mrrOver30 + mrrOther + ordersOver30 + bruceOver30
+  const totalUnder30 = mrrUnder30 + ordersUnder30 + bruceUnder30
   const totalRevenue = totalOver30 + totalUnder30
   const vatAmount = Math.round(totalOver30 * 0.25)
   const over30Pct = totalRevenue > 0 ? Math.round(totalOver30 / totalRevenue * 100) : 0
@@ -138,7 +149,7 @@ export async function GET(request: Request) {
     period: { start, end },
     split_pct: { over30: over30Pct, under30: under30Pct },
     mrr: { total: Math.round(totalMRR), over30: Math.round(mrrOver30 + mrrOther), under30: Math.round(mrrUnder30), vat: Math.round((mrrOver30 + mrrOther) * 0.25) },
-    orders: { total: Math.round(totalOrders), over30: Math.round(ordersOver30), under30: Math.round(ordersUnder30), vat: Math.round(ordersOver30 * 0.25), breakdown: ordersBreakdown },
+    bruce: { total: Math.round(bruceTotal), over30: Math.round(bruceOver30), under30: Math.round(bruceUnder30), vat: bruceVat, months: bruceRates?.length || 0 },
     total_revenue: { total: Math.round(totalRevenue), over30: Math.round(totalOver30), under30: Math.round(totalUnder30), vat: vatAmount },
     sessions: { total: sessions?.length || 0, participants: sessions?.reduce((s, x) => s + (x.participants || 0), 0) || 0 },
     freelancers: freelancerData,
