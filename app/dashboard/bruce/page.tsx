@@ -34,6 +34,79 @@ interface BruceData {
   history: BruceMonth[]
 }
 
+function EditMonthModal({ month, currentRate, currentVisits, onClose, onSaved }: {
+  month: BruceMonth
+  currentRate: number
+  currentVisits: number
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [rate, setRate] = useState(currentRate)
+  const [visits, setVisits] = useState(currentVisits)
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    setSaving(true)
+    await fetch('/api/bruce', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        month: month.month,
+        rate_per_visit: rate,
+        actual_visits: visits,
+        notes,
+      })
+    })
+    setSaving(false)
+    onSaved()
+    onClose()
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 420, boxShadow: '0 24px 64px rgba(0,0,0,.2)' }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1520', marginBottom: 4 }}>
+          Rediger Bruce afregning — {month.month_label}
+        </div>
+        <div style={{ fontSize: 12, color: '#8a85a0', marginBottom: 20 }}>
+          Indtast faktiske tal fra Bruce afregning
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <label style={{ fontSize: 12, color: '#4a4560' }}>
+            Antal Bruce-besøg
+            <input type="number" value={visits} onChange={e => setVisits(Number(e.target.value))}
+              style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4, boxSizing: 'border-box' as const }} />
+          </label>
+          <label style={{ fontSize: 12, color: '#4a4560' }}>
+            Pris pr. besøg (kr.)
+            <input type="number" value={rate} onChange={e => setRate(Number(e.target.value))}
+              style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4, boxSizing: 'border-box' as const }} />
+          </label>
+          <div style={{ background: '#f8f7fc', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#4a4560' }}>
+            Samlet afregning: <strong>{formatDKK(Math.round(visits * rate))}</strong>
+          </div>
+          <label style={{ fontSize: 12, color: '#4a4560' }}>
+            Note (valgfri)
+            <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Fx fakturanummer"
+              style={{ display: 'block', width: '100%', padding: '8px 12px', border: '1px solid #e4e0f0', borderRadius: 8, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 4, boxSizing: 'border-box' as const }} />
+          </label>
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+          <button onClick={save} disabled={saving}
+            style={{ flex: 1, background: '#2e8b6a', border: 'none', color: '#fff', padding: '10px', borderRadius: 24, cursor: 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
+            {saving ? 'Gemmer...' : 'Gem afregning'}
+          </button>
+          <button onClick={onClose}
+            style={{ flex: 1, background: '#f8f7fc', border: '1px solid #e4e0f0', color: '#1a1520', padding: '10px', borderRadius: 24, cursor: 'pointer', fontSize: 12, fontFamily: 'Inter, sans-serif' }}>
+            Annuller
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function BrucePage() {
   const [data, setData] = useState<BruceData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -42,6 +115,7 @@ export default function BrucePage() {
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [editingMonth, setEditingMonth] = useState<BruceMonth | null>(null)
 
   useEffect(() => { loadData() }, [])
 
@@ -170,6 +244,31 @@ export default function BrucePage() {
                   <span style={{ fontSize: 10, color: '#8a85a0' }}>Estimeret</span>
                 </div>
               </div>
+
+              {/* Historik tabel med rediger knap */}
+              <div style={{ marginTop: 20, borderTop: '1px solid #e4e0f0', paddingTop: 16 }}>
+                <div style={{ fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 12 }}>Månedsoversigt</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {[...data.history].reverse().map((h, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, background: '#f8f7fc', border: '1px solid #e4e0f0' }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#1a1520' }}>{h.month_label}</div>
+                        <div style={{ fontSize: 11, color: '#8a85a0' }}>{h.visits} besøg · {h.rate} kr./besøg</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'Barlow Condensed, sans-serif', color: '#1a1520' }}>{formatDKK(h.revenue)}</span>
+                        <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 8, background: h.is_estimated ? '#fff3d4' : '#e8f5ef', color: h.is_estimated ? '#9a6200' : '#2e8b6a', fontWeight: 600 }}>
+                          {h.is_estimated ? 'Est.' : '✓'}
+                        </span>
+                        <button onClick={() => setEditingMonth(h)}
+                          style={{ fontSize: 10, padding: '4px 10px', borderRadius: 8, border: '1px solid #e4e0f0', background: '#fff', color: '#6b5ca5', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
+                          Ret
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </>
           )}
         </div>
@@ -208,6 +307,16 @@ export default function BrucePage() {
           </div>
         </div>
       </div>
+
+      {editingMonth && (
+        <EditMonthModal
+          month={editingMonth}
+          currentRate={editingMonth.rate}
+          currentVisits={editingMonth.visits}
+          onClose={() => setEditingMonth(null)}
+          onSaved={loadData}
+        />
+      )}
     </div>
   )
 }
