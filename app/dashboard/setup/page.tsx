@@ -553,6 +553,8 @@ function EmployeeCard({ employee: i, locations, saving, onUpdate, onEditSalary, 
   const [showSalaryMatch, setShowSalaryMatch] = useState(false)
   const isMatched = !!i.salary_employee_id
   const matchedName = salaryEmployees.find(e => e.salary_id === i.salary_employee_id)?.name
+  const employeeLocation = locations.find(l => l.id === i.location_id)
+  const showSalary = employeeLocation?.country !== 'US'
 
   async function removeRole(role: string) {
     await fetch(`/api/employee-roles?employee_id=${i.id}&role=${role}`, { method: 'DELETE' })
@@ -585,11 +587,11 @@ function EmployeeCard({ employee: i, locations, saving, onUpdate, onEditSalary, 
                   </div>
                 )
               })}
-              {isMatched && (
-                <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 10, fontWeight: 600, background: '#e8f5ef', color: '#2e8b6a', border: '1px solid #b0d8c4' }}>
-                  ✓ Salary
-                </span>
-              )}
+              {isMatched && showSalary && (
+            <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 10, fontWeight: 600, background: '#e8f5ef', color: '#2e8b6a', border: '1px solid #b0d8c4' }}>
+              ✓ Salary
+            </span>
+          )}
             </div>
           </div>
         </div>
@@ -615,10 +617,12 @@ function EmployeeCard({ employee: i, locations, saving, onUpdate, onEditSalary, 
             style={{ padding: '5px 10px', borderRadius: 8, fontSize: 11, border: '1px dashed #d0c8e8', cursor: 'pointer', background: '#f8f7fc', color: '#8a85a0', fontFamily: 'Inter, sans-serif' }}>
             + Rolle
           </button>
-          <button onClick={() => setShowSalaryMatch(true)}
-            style={{ padding: '5px 10px', borderRadius: 8, fontSize: 11, border: `1px solid ${isMatched ? '#2e8b6a' : '#e4e0f0'}`, cursor: 'pointer', background: isMatched ? '#e8f5ef' : '#f8f7fc', color: isMatched ? '#2e8b6a' : '#8a85a0', fontFamily: 'Inter, sans-serif', fontWeight: isMatched ? 600 : 400 }}>
-            {isMatched ? '✓ Salary' : 'Salary'}
-          </button>
+          {showSalary && (
+            <button onClick={() => setShowSalaryMatch(true)}
+              style={{ padding: '5px 10px', borderRadius: 8, fontSize: 11, border: `1px solid ${isMatched ? '#2e8b6a' : '#e4e0f0'}`, cursor: 'pointer', background: isMatched ? '#e8f5ef' : '#f8f7fc', color: isMatched ? '#2e8b6a' : '#8a85a0', fontFamily: 'Inter, sans-serif', fontWeight: isMatched ? 600 : 400 }}>
+              {isMatched ? '✓ Salary' : 'Salary'}
+            </button>
+          )}
           <button onClick={() => onUpdate({ is_active: !i.is_active })}
             style={{ padding: '5px 10px', borderRadius: 8, fontSize: 11, border: '1px solid #e4e0f0', cursor: 'pointer', background: i.is_active ? '#e8f5ef' : '#fdecea', color: i.is_active ? '#2e8b6a' : '#c0392b', fontFamily: 'Inter, sans-serif' }}>
             {i.is_active ? 'Aktiv' : 'Inaktiv'}
