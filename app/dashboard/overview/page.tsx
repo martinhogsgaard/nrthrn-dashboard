@@ -50,7 +50,6 @@ export default function OverviewPage() {
   if (!data && loading) return <div style={{ padding: 40, color: '#8a85a0', textAlign: 'center' }}>Henter data...</div>
   if (!data) return null
 
-  const maxMrr = Math.max(...data.mrr_history.map(m => m.mrr), 1)
   const periodLabel = start === defaultStart && end === defaultEnd
     ? new Date().toLocaleDateString('da-DK', { month: 'long', year: 'numeric' })
     : `${start} – ${end}`
@@ -101,9 +100,8 @@ export default function OverviewPage() {
       </div>
 
       {/* Række 2 — Nøgletal */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 16 }}>
         {[
-          { label: 'Split-moms %', val: data.split_pct + '%', sub: 'Over 30: ' + data.over30_members + ' · U30: ' + data.under30_members },
           { label: 'First Timers denne måned', val: firstTimers?.first_timers?.total || 0, sub: 'Første besøg i centret', color: '#2e8b6a' },
           { label: 'Konverteringsrate', val: (firstTimers?.first_timers?.conversion_rate || 0) + '%', sub: (firstTimers?.first_timers?.converted || 0) + ' first timers til medlem', color: '#6b5ca5' },
           { label: 'Avg. besøg/medlem', val: data.avg_visits || '–', sub: 'Afholdte hold denne periode' },
@@ -139,27 +137,12 @@ export default function OverviewPage() {
         </div>
       </div>
 
-      {/* Række 4 — Løn + MRR graf */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+      {/* Række 4 — Løn */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, marginBottom: 16 }}>
         <div style={{ background: '#f2f0f9', border: '1px solid #d0c8e8', borderRadius: 10, padding: 24 }}>
           <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 600, marginBottom: 8 }}>Lønomkostninger til dato</div>
           <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 40, fontWeight: 700, color: '#6b5ca5', lineHeight: 1 }}>{formatDKK(data.historic.payroll)}</div>
           <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 8 }}>Afholdte hold {start} – {end}</div>
-        </div>
-        <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
-          <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 16 }}>MRR — seneste 6 måneder</div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 64 }}>
-            {data.mrr_history.map((m, i) => (
-              <div key={i} style={{ flex: 1 }}>
-                <div style={{ width: '100%', height: m.mrr > 0 ? Math.round(m.mrr / maxMrr * 100) + '%' : '4px', background: i === 5 ? '#6b5ca5' : '#d0c8e8', borderRadius: '3px 3px 0 0', minHeight: 4 }} />
-              </div>
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            {data.mrr_history.map((m, i) => (
-              <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: 9, color: i === 5 ? '#6b5ca5' : '#8a85a0', fontWeight: i === 5 ? 700 : 400 }}>{m.month}</div>
-            ))}
-          </div>
         </div>
       </div>
 
