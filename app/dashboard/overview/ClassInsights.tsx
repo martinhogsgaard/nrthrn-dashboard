@@ -68,9 +68,10 @@ export default function ClassInsights({ location, start, end }: { location: stri
   const [compareEnd, setCompareEnd] = useState('')
 
   useEffect(() => {
-    // Default sammenligningsperiode: samme periode forrige år
+    if (!start || !end) return
     const s = new Date(start)
     const e = new Date(end)
+    if (isNaN(s.getTime()) || isNaN(e.getTime())) return
     s.setFullYear(s.getFullYear() - 1)
     e.setFullYear(e.getFullYear() - 1)
     setCompareStart(s.toISOString().split('T')[0])
