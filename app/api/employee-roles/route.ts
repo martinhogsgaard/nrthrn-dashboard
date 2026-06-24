@@ -40,11 +40,6 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: 'Mangler employee_id eller role' }, { status: 400 })
   }
 
-  // Instructor-rollen kan ikke slettes
-  if (role === 'instructor') {
-    return NextResponse.json({ error: 'Instructor-rollen kan ikke slettes' }, { status: 400 })
-  }
-
   const { error } = await supabase
     .from('employee_roles')
     .delete()
