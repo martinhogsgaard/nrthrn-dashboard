@@ -44,15 +44,102 @@ const weekdayLabel: Record<string, string> = {
   fredag: 'Fre', lørdag: 'Lør', søndag: 'Søn',
 }
 
-function Delta({ current, prev, suffix = '' }: { current: number; prev: number | undefined; suffix?: string }) {
-  if (prev === undefined || prev === null) return null
-  const diff = current - prev
-  if (diff === 0) return <span style={{ fontSize: 11, color: '#8a85a0', marginLeft: 6 }}>– 0{suffix}</span>
-  const up = diff > 0
+function StatWithCompare({ label, val, prev, suffix = '' }: { label: string; val: number; prev: number | undefined; suffix?: string }) {
   return (
-    <span style={{ fontSize: 11, color: up ? '#2e8b6a' : '#c0392b', marginLeft: 6, fontWeight: 600 }}>
-      {up ? '▲' : '▼'} {Math.abs(diff)}{suffix}
-    </span>
+    <div style={{ background: '#f8f7fc', borderRadius: 8, padding: '14px 16px' }}>
+      <div style={{ fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 6 }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 26, fontWeight: 700, color: '#1a1520' }}>{val}{suffix}</span>
+        {prev !== undefined && prev !== null && (
+          <span style={{ fontSize: 12, color: '#8a85a0' }}>
+            vs <span style={{ fontWeight: 600, color: val >= prev ? '#2e8b6a' : '#c0392b' }}>{prev}{suffix}</span>
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Horisontal bjælke-liste (holdtyper / instruktører)
+function BarList({ title, rows, compareMap, nameKey, onSelect, selected }: {
+  title: string
+  rows: { name: string; sessions: number; avg_participants: number; avg_occupancy: number }[]
+  compareMap: Map<string, { avg_occupancy: number }>
+  nameKey: string
+  onSelect: (name: string) => void
+  selected: string
+}) {
+  const maxOcc = Math.max(...rows.map(r => r.avg_occupancy), 1)
+  return (
+    <div>
+      <div style={{ fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 12 }}>{title}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {rows.map((r, i) => {
+          const prev = compareMap.get(r.name)
+          const isSelected = selected === r.name
+          return (
+            <div key={i} onClick={() => onSelect(isSelected ? '' : r.name)}
+              style={{ cursor: 'pointer', padding: '6px 8px', borderRadius: 6, background: isSelected ? '#f2f0f9' : 'transparent' }}
+              onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#fafafa' }}
+              onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontSize: 12, fontWeight: isSelected ? 700 : 500, color: '#1a1520' }}>{r.name}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#1a1520' }}>
+                  {r.avg_occupancy}%
+                  {prev !== undefined && (
+                    <span style={{ fontSize: 10, color: r.avg_occupancy >= prev.avg_occupancy ? '#2e8b6a' : '#c0392b', marginLeft: 4 }}>
+                      ({prev.avg_occupancy}%)
+                    </span>
+                  )}
+                </span>
+              </div>
+              <div style={{ height: 8, background: '#f0eef8', borderRadius: 4, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${(r.avg_occupancy / maxOcc) * 100}%`, background: isSelected ? '#6b5ca5' : '#a89bd0', borderRadius: 4 }} />
+              </div>
+              <div style={{ fontSize: 10, color: '#8a85a0', marginTop: 2 }}>{r.sessions} hold · {r.avg_participants} avg. deltagere</div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// Lodret søjle-graf (ugedag / tidspunkt)
+function BarChart({ title, data, labelMap, onSelect, selected }: {
+  title: string
+  data: { key: string; sessions: number; avg_occupancy: number }[]
+  labelMap?: Record<string, string>
+  onSelect: (key: string) => void
+  selected: string
+}) {
+  const maxOcc = Math.max(...data.map(d => d.avg_occupancy), 1)
+  return (
+    <div>
+      <div style={{ fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 12 }}>{title}</div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 110 }}>
+        {data.map((d, i) => {
+          const isSelected = selected === d.key
+          const hasData = d.sessions > 0
+          return (
+            <div key={i} onClick={() => hasData && onSelect(isSelected ? '' : d.key)}
+              style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: hasData ? 'pointer' : 'default' }}>
+              <div style={{ fontSize: 9, color: '#8a85a0', fontWeight: 600 }}>{hasData ? `${d.avg_occupancy}%` : ''}</div>
+              <div style={{
+                width: '100%',
+                height: hasData ? Math.max((d.avg_occupancy / maxOcc) * 70, 3) : 2,
+                background: !hasData ? '#f0eef8' : isSelected ? '#6b5ca5' : '#a89bd0',
+                borderRadius: '3px 3px 0 0',
+              }} />
+              <div style={{ fontSize: 10, color: isSelected ? '#6b5ca5' : '#8a85a0', fontWeight: isSelected ? 700 : 500 }}>
+                {labelMap?.[d.key] || d.key}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -62,10 +149,11 @@ export default function ClassInsights({ location, start, end }: { location: stri
   const [classTypeFilter, setClassTypeFilter] = useState('')
   const [instructorFilter, setInstructorFilter] = useState('')
   const [weekdayFilter, setWeekdayFilter] = useState('')
-  const [heatmapMetric, setHeatmapMetric] = useState<'occupancy' | 'sessions'>('occupancy')
   const [compareEnabled, setCompareEnabled] = useState(false)
   const [compareStart, setCompareStart] = useState('')
   const [compareEnd, setCompareEnd] = useState('')
+  const [appliedCompareStart, setAppliedCompareStart] = useState('')
+  const [appliedCompareEnd, setAppliedCompareEnd] = useState('')
 
   useEffect(() => {
     if (!start || !end) return
@@ -74,8 +162,12 @@ export default function ClassInsights({ location, start, end }: { location: stri
     if (isNaN(s.getTime()) || isNaN(e.getTime())) return
     s.setFullYear(s.getFullYear() - 1)
     e.setFullYear(e.getFullYear() - 1)
-    setCompareStart(s.toISOString().split('T')[0])
-    setCompareEnd(e.toISOString().split('T')[0])
+    const cs = s.toISOString().split('T')[0]
+    const ce = e.toISOString().split('T')[0]
+    setCompareStart(cs)
+    setCompareEnd(ce)
+    setAppliedCompareStart(cs)
+    setAppliedCompareEnd(ce)
   }, [start, end])
 
   useEffect(() => {
@@ -84,15 +176,15 @@ export default function ClassInsights({ location, start, end }: { location: stri
     if (classTypeFilter) params.set('classType', classTypeFilter)
     if (instructorFilter) params.set('instructor', instructorFilter)
     if (weekdayFilter) params.set('weekday', weekdayFilter)
-    if (compareEnabled && compareStart && compareEnd) {
-      params.set('compareStart', compareStart)
-      params.set('compareEnd', compareEnd)
+    if (compareEnabled && appliedCompareStart && appliedCompareEnd) {
+      params.set('compareStart', appliedCompareStart)
+      params.set('compareEnd', appliedCompareEnd)
     }
     fetch(`/api/class-insights?${params.toString()}`)
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false) })
       .catch(() => setLoading(false))
-  }, [location, start, end, classTypeFilter, instructorFilter, weekdayFilter, compareEnabled, compareStart, compareEnd])
+  }, [location, start, end, classTypeFilter, instructorFilter, weekdayFilter, compareEnabled, appliedCompareStart, appliedCompareEnd])
 
   if (loading && !data) return (
     <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 40, textAlign: 'center', color: '#8a85a0' }}>
@@ -107,17 +199,43 @@ export default function ClassInsights({ location, start, end }: { location: stri
   const allClassTypes = cur.class_types.map(c => c.class_type)
   const allInstructors = cur.instructors.map(i => i.instructor_name)
 
-  const maxHeat = Math.max(
-    ...cur.heatmap.cells.map(c => heatmapMetric === 'occupancy' ? c.avg_occupancy : c.sessions),
-    1
-  )
+  const cmpClassTypeMap = new Map((cmp?.class_types || []).map(c => [c.class_type, { avg_occupancy: c.avg_occupancy }]))
+  const cmpInstructorMap = new Map((cmp?.instructors || []).map(i => [i.instructor_name, { avg_occupancy: i.avg_occupancy }]))
 
-  function getCell(weekday: string, hour: string) {
-    return cur.heatmap.cells.find(c => c.weekday === weekday && c.hour === hour)
+  // Aggreger heatmap-celler til ugedag-niveau
+  const weekdayAgg: Record<string, { sessions: number; participants: number; capacitySum: number }> = {}
+  for (const wd of cur.heatmap.weekday_order) weekdayAgg[wd] = { sessions: 0, participants: 0, capacitySum: 0 }
+  for (const cell of cur.heatmap.cells) {
+    weekdayAgg[cell.weekday].sessions += cell.sessions
+    // Vi har ikke participants/capacity direkte her, så vi bruger den allerede beregnede avg_occupancy vægtet med sessions
+    weekdayAgg[cell.weekday].participants += cell.avg_occupancy * cell.sessions
+    weekdayAgg[cell.weekday].capacitySum += cell.sessions
   }
+  const weekdayData = cur.heatmap.weekday_order.map(wd => ({
+    key: wd,
+    sessions: weekdayAgg[wd].sessions,
+    avg_occupancy: weekdayAgg[wd].capacitySum > 0 ? Math.round(weekdayAgg[wd].participants / weekdayAgg[wd].capacitySum) : 0,
+  }))
 
-  const cmpClassTypeMap = new Map((cmp?.class_types || []).map(c => [c.class_type, c]))
-  const cmpInstructorMap = new Map((cmp?.instructors || []).map(i => [i.instructor_name, i]))
+  // Aggreger heatmap-celler til time-niveau
+  const hourAgg: Record<string, { sessions: number; participants: number; capacitySum: number }> = {}
+  for (const hr of cur.heatmap.hours) hourAgg[hr] = { sessions: 0, participants: 0, capacitySum: 0 }
+  for (const cell of cur.heatmap.cells) {
+    if (!hourAgg[cell.hour]) hourAgg[cell.hour] = { sessions: 0, participants: 0, capacitySum: 0 }
+    hourAgg[cell.hour].sessions += cell.sessions
+    hourAgg[cell.hour].participants += cell.avg_occupancy * cell.sessions
+    hourAgg[cell.hour].capacitySum += cell.sessions
+  }
+  const hourData = cur.heatmap.hours.map(hr => ({
+    key: hr,
+    sessions: hourAgg[hr].sessions,
+    avg_occupancy: hourAgg[hr].capacitySum > 0 ? Math.round(hourAgg[hr].participants / hourAgg[hr].capacitySum) : 0,
+  }))
+
+  function applyCompare() {
+    setAppliedCompareStart(compareStart)
+    setAppliedCompareEnd(compareEnd)
+  }
 
   return (
     <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24, marginBottom: 16 }}>
@@ -129,7 +247,6 @@ export default function ClassInsights({ location, start, end }: { location: stri
           </div>
         </div>
 
-        {/* Filtre */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <select value={classTypeFilter} onChange={e => setClassTypeFilter(e.target.value)}
             style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #e4e0f0', fontSize: 11, fontFamily: 'Inter, sans-serif', background: '#f8f7fc', color: '#1a1520' }}>
@@ -146,11 +263,26 @@ export default function ClassInsights({ location, start, end }: { location: stri
             <option value="">Alle ugedage</option>
             {cur.heatmap.weekday_order.map(w => <option key={w} value={w}>{weekdayLabel[w] || w}</option>)}
           </select>
+          {(classTypeFilter || instructorFilter || weekdayFilter) && (
+            <button onClick={() => { setClassTypeFilter(''); setInstructorFilter(''); setWeekdayFilter('') }}
+              style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #e4e0f0', fontSize: 11, fontFamily: 'Inter, sans-serif', background: '#fff', color: '#c0392b', cursor: 'pointer' }}>
+              Nulstil filtre
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Sammenligning toggle */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, padding: '10px 14px', background: '#f8f7fc', borderRadius: 8 }}>
+      {/* Aktive filtre vist tydeligt */}
+      {(classTypeFilter || instructorFilter || weekdayFilter) && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+          {classTypeFilter && <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 12, background: '#f2f0f9', color: '#6b5ca5', fontWeight: 600 }}>Hold: {classTypeFilter}</span>}
+          {instructorFilter && <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 12, background: '#f2f0f9', color: '#6b5ca5', fontWeight: 600 }}>Instruktør: {instructorFilter}</span>}
+          {weekdayFilter && <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 12, background: '#f2f0f9', color: '#6b5ca5', fontWeight: 600 }}>Dag: {weekdayLabel[weekdayFilter] || weekdayFilter}</span>}
+        </div>
+      )}
+
+      {/* Sammenligning */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, padding: '10px 14px', background: '#f8f7fc', borderRadius: 8, flexWrap: 'wrap' }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#4a4560', cursor: 'pointer' }}>
           <input type="checkbox" checked={compareEnabled} onChange={e => setCompareEnabled(e.target.checked)} />
           Sammenlign med periode
@@ -162,138 +294,49 @@ export default function ClassInsights({ location, start, end }: { location: stri
             <span style={{ fontSize: 11, color: '#8a85a0' }}>–</span>
             <input type="date" value={compareEnd} onChange={e => setCompareEnd(e.target.value)}
               style={{ fontSize: 11, padding: '4px 8px', border: '1px solid #e4e0f0', borderRadius: 6, color: '#1a1520' }} />
+            <button onClick={applyCompare}
+              style={{ fontSize: 11, padding: '5px 14px', borderRadius: 8, border: 'none', background: '#6b5ca5', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
+              Opdater
+            </button>
           </>
         )}
       </div>
 
-      {/* Toplinje nøgletal */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 20 }}>
-        {[
-          { label: 'Hold afholdt', val: cur.sessions_total, prev: cmp?.sessions_total },
-          { label: 'Deltagere', val: cur.participants_total, prev: cmp?.participants_total },
-          { label: 'Avg. belægning', val: cur.avg_occupancy, prev: cmp?.avg_occupancy, suffix: '%' },
-        ].map((k, i) => (
-          <div key={i} style={{ background: '#f8f7fc', borderRadius: 8, padding: '14px 16px' }}>
-            <div style={{ fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 6 }}>{k.label}</div>
-            <div style={{ display: 'flex', alignItems: 'baseline' }}>
-              <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 26, fontWeight: 700, color: '#1a1520' }}>{k.val}{k.suffix || ''}</span>
-              <Delta current={k.val} prev={k.prev} suffix={k.suffix} />
-            </div>
-          </div>
-        ))}
+      {/* Toplinje nøgletal med begge tal */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 24 }}>
+        <StatWithCompare label="Hold afholdt" val={cur.sessions_total} prev={cmp?.sessions_total} />
+        <StatWithCompare label="Deltagere" val={cur.participants_total} prev={cmp?.participants_total} />
+        <StatWithCompare label="Avg. belægning" val={cur.avg_occupancy} prev={cmp?.avg_occupancy} suffix="%" />
       </div>
 
-      {/* Heatmap */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <div style={{ fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700 }}>Belægning pr. ugedag og tidspunkt</div>
-          <div style={{ display: 'flex', gap: 4 }}>
-            <button onClick={() => setHeatmapMetric('occupancy')}
-              style={{ fontSize: 10, padding: '4px 10px', borderRadius: 14, border: '1px solid ' + (heatmapMetric === 'occupancy' ? '#6b5ca5' : '#e4e0f0'), background: heatmapMetric === 'occupancy' ? '#f2f0f9' : '#fff', color: heatmapMetric === 'occupancy' ? '#6b5ca5' : '#8a85a0', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
-              Belægning %
-            </button>
-            <button onClick={() => setHeatmapMetric('sessions')}
-              style={{ fontSize: 10, padding: '4px 10px', borderRadius: 14, border: '1px solid ' + (heatmapMetric === 'sessions' ? '#6b5ca5' : '#e4e0f0'), background: heatmapMetric === 'sessions' ? '#f2f0f9' : '#fff', color: heatmapMetric === 'sessions' ? '#6b5ca5' : '#8a85a0', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
-              Antal hold
-            </button>
-          </div>
-        </div>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-            <thead>
-              <tr>
-                <th style={{ width: 50 }}></th>
-                {cur.heatmap.hours.map(h => (
-                  <th key={h} style={{ fontSize: 9, color: '#8a85a0', fontWeight: 600, padding: '2px 4px' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {cur.heatmap.weekday_order.map(wd => (
-                <tr key={wd}>
-                  <td style={{ fontSize: 10, color: '#8a85a0', fontWeight: 600, paddingRight: 8, textAlign: 'right' }}>{weekdayLabel[wd] || wd}</td>
-                  {cur.heatmap.hours.map(hr => {
-                    const cell = getCell(wd, hr)
-                    const val = cell ? (heatmapMetric === 'occupancy' ? cell.avg_occupancy : cell.sessions) : 0
-                    const intensity = val / maxHeat
-                    return (
-                      <td key={hr} title={cell ? `${cell.sessions} hold, ${cell.avg_occupancy}% belægning` : 'Ingen hold'}
-                        style={{
-                          width: 28, height: 28, textAlign: 'center', fontSize: 9, fontWeight: 600,
-                          background: cell ? `rgba(107,92,165,${0.1 + intensity * 0.75})` : '#f8f7fc',
-                          color: intensity > 0.5 ? '#fff' : '#4a4560',
-                          border: '1px solid #fff',
-                        }}>
-                        {cell ? val : ''}
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* Ugedag og tidspunkt grafer side om side */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 28, paddingBottom: 24, borderBottom: '1px solid #f0eef8' }}>
+        <BarChart title="Belægning pr. ugedag" data={weekdayData} labelMap={weekdayLabel} onSelect={setWeekdayFilter} selected={weekdayFilter} />
+        <BarChart title="Belægning pr. tidspunkt" data={hourData} onSelect={() => {}} selected="" />
       </div>
 
-      {/* Holdtyper + Instruktører side om side */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <div>
-          <div style={{ fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 10 }}>Holdtyper — efter belægning</div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-            <thead>
-              <tr style={{ background: '#f8f7fc' }}>
-                {['Hold', 'Antal', 'Avg del.', 'Belægning'].map(h => (
-                  <th key={h} style={{ fontSize: 9, letterSpacing: '.08em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, padding: '8px 10px', textAlign: 'left' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {cur.class_types.map((c, i) => {
-                const prev = cmpClassTypeMap.get(c.class_type)
-                return (
-                  <tr key={i} style={{ borderBottom: '1px solid #f0eef8' }}>
-                    <td style={{ padding: '8px 10px', fontWeight: 500 }}>{c.class_type}</td>
-                    <td style={{ padding: '8px 10px' }}>{c.sessions}</td>
-                    <td style={{ padding: '8px 10px' }}>{c.avg_participants}</td>
-                    <td style={{ padding: '8px 10px', fontWeight: 700 }}>
-                      {c.avg_occupancy}%
-                      <Delta current={c.avg_occupancy} prev={prev?.avg_occupancy} suffix="%" />
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+      {/* Holdtyper + Instruktører som bjælker */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+        <BarList
+          title="Holdtyper — efter belægning"
+          rows={cur.class_types.map(c => ({ name: c.class_type, sessions: c.sessions, avg_participants: c.avg_participants, avg_occupancy: c.avg_occupancy }))}
+          compareMap={cmpClassTypeMap}
+          nameKey="class_type"
+          onSelect={setClassTypeFilter}
+          selected={classTypeFilter}
+        />
+        <BarList
+          title="Instruktører — efter belægning"
+          rows={cur.instructors.map(i => ({ name: i.instructor_name, sessions: i.sessions, avg_participants: i.avg_participants, avg_occupancy: i.avg_occupancy }))}
+          compareMap={cmpInstructorMap}
+          nameKey="instructor_name"
+          onSelect={setInstructorFilter}
+          selected={instructorFilter}
+        />
+      </div>
 
-        <div>
-          <div style={{ fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 10 }}>Instruktører — efter belægning</div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-            <thead>
-              <tr style={{ background: '#f8f7fc' }}>
-                {['Instruktør', 'Antal', 'Avg del.', 'Belægning'].map(h => (
-                  <th key={h} style={{ fontSize: 9, letterSpacing: '.08em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, padding: '8px 10px', textAlign: 'left' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {cur.instructors.map((ins, i) => {
-                const prev = cmpInstructorMap.get(ins.instructor_name)
-                return (
-                  <tr key={i} style={{ borderBottom: '1px solid #f0eef8' }}>
-                    <td style={{ padding: '8px 10px', fontWeight: 500 }}>{ins.instructor_name}</td>
-                    <td style={{ padding: '8px 10px' }}>{ins.sessions}</td>
-                    <td style={{ padding: '8px 10px' }}>{ins.avg_participants}</td>
-                    <td style={{ padding: '8px 10px', fontWeight: 700 }}>
-                      {ins.avg_occupancy}%
-                      <Delta current={ins.avg_occupancy} prev={prev?.avg_occupancy} suffix="%" />
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+      <div style={{ fontSize: 10, color: '#8a85a0', marginTop: 16, fontStyle: 'italic' }}>
+        Klik på en holdtype, instruktør eller ugedag for at filtrere hele oversigten.
       </div>
     </div>
   )
