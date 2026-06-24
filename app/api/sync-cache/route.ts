@@ -64,6 +64,39 @@ async function syncSessions(locationId: string, sessionStart: string, sessionEnd
   return sessionsToUpsert.length
 }
 
+async function syncClassSessionTypes() {
+  let allTypes: any[] = []
+  let page = 1
+
+  while (true) {
+    const res = await fetch(
+      `${MT_BASE}/class_session_types?page=${page}`,
+      { headers: MT_HEADERS }
+    )
+    const data = await res.json()
+    if (!data.data?.length) break
+    allTypes = [...allTypes, ...data.data]
+    if (data.meta?.pagination?.pages <= page) break
+    page++
+  }
+
+  const typesToUpsert = allTypes.map((t: any) => ({
+    id: t.id,
+    name: t.attributes.name,
+    duration: t.attributes.duration,
+    is_real_class: t.attributes.description !== null,
+    enabled: t.attributes.enabled,
+    updated_at: new Date().toISOString(),
+  }))
+
+  if (typesToUpsert.length > 0) {
+    const { error } = await supabase.from('class_session_types').upsert(typesToUpsert, { onConflict: 'id' })
+    if (error) throw new Error(error.message)
+  }
+
+  return typesToUpsert.length
+}
+
 async function syncMemberships(locationId: string) {
   let allInstances: any[] = []
   let page = 1
@@ -167,6 +200,14 @@ export async function GET(request: Request) {
     results.sessions = `${cphCount + nycCount} sessions synkroniseret (CPH: ${cphCount}, NYC: ${nycCount})`
   } catch (e: any) {
     results.sessions = `Fejl: ${e.message}`
+  }
+
+  // 2b. Sync class session types (til klassificering af rigtige hold vs. administrative bookinger)
+  try {
+    const count = await syncClassSessionTypes()
+    results.class_session_types = `${count} class session types synkroniseret`
+  } catch (e: any) {
+    results.class_session_types = `Fejl: ${e.message}`
   }
 
   // 3. Sync memberships — CPH + NYC
