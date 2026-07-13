@@ -93,7 +93,7 @@ export default function SplitsPage() {
       ``,
       `FAKTURA OPDELING`,
       `Over 30 (momspligtig): ${f.totals.over30_amount} kr.`,
-      `  + Moms 25%: ${f.totals.vat_amount} kr.`,
+      `  heraf moms: ${f.totals.vat_amount} kr.`,
       `Under 30 (momsfri): ${f.totals.under30_amount} kr.`,
       ``,
       `FAKTURA TOTAL: ${f.totals.invoice_total} kr.`,
@@ -148,7 +148,7 @@ export default function SplitsPage() {
           {[
             { label: 'Faktura total', val: formatDKK(selected.totals.invoice_total), color: '#6b5ca5' },
             { label: 'Ekskl. moms', val: formatDKK(selected.totals.amount_excl_vat) },
-            { label: 'Moms 25%', val: formatDKK(selected.totals.vat_amount), color: '#9a6200' },
+            { label: 'Heraf moms', val: formatDKK(selected.totals.vat_amount), color: '#9a6200' },
             { label: 'Hold / Deltagere', val: `${selected.totals.sessions} / ${selected.totals.participants}` },
           ].map((k, i) => (
             <div key={i} style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: '16px', borderTop: `3px solid ${k.color || '#e4e0f0'}` }}>
@@ -203,7 +203,7 @@ export default function SplitsPage() {
           <div style={{ fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700, marginBottom: 16 }}>Faktura opsummering</div>
           {[
             { label: `Over 30 (${data.split_pct.over30}%) — momspligtig`, val: formatDKK(selected.totals.over30_amount) },
-            { label: '+ Moms 25%', val: formatDKK(selected.totals.vat_amount), color: '#9a6200', indent: true },
+            { label: 'Heraf moms', val: formatDKK(selected.totals.vat_amount), color: '#9a6200', indent: true },
             { label: `Under 30 (${data.split_pct.under30}%) — momsfri`, val: formatDKK(selected.totals.under30_amount) },
           ].map((r, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #d0c8e8', paddingLeft: r.indent ? 16 : 0 }}>
@@ -263,7 +263,7 @@ export default function SplitsPage() {
           <div style={{ fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 16 }}>MRR — løbende abonnementer</div>
           {[
             { label: `Over 30 (${data.split_pct.over30}%)`, val: formatDKK(data.mrr.over30), color: '#6b5ca5' },
-            { label: '+ Moms 25%', val: formatDKK(data.mrr.vat), color: '#9a6200', indent: true },
+            { label: 'Heraf moms', val: formatDKK(data.mrr.vat), color: '#9a6200', indent: true },
             { label: `Under 30 (${data.split_pct.under30}%)`, val: formatDKK(data.mrr.under30), color: '#2e8b6a' },
           ].map((r, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f0eef8', paddingLeft: r.indent ? 16 : 0 }}>
@@ -310,7 +310,7 @@ export default function SplitsPage() {
             {[
               { label: 'Over 30 (momspligtig)', val: formatDKK(data.orders.over30 - (data.orders.breakdown.filter(o => o.age_group === 'other').reduce((s, o) => s + o.total, 0))), color: '#6b5ca5' },
               { label: 'Andet (momspligtig)', val: formatDKK(data.orders.breakdown.filter(o => o.age_group === 'other').reduce((s, o) => s + o.total, 0)), color: '#888' },
-              { label: '+ Moms 25%', val: formatDKK(data.orders.vat), color: '#9a6200', indent: true },
+              { label: 'Heraf moms', val: formatDKK(data.orders.vat), color: '#9a6200', indent: true },
               { label: 'Under 30 (momsfri)', val: formatDKK(data.orders.under30), color: '#2e8b6a' },
             ].map((r, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f0eef8', paddingLeft: r.indent ? 16 : 0 }}>
@@ -343,7 +343,7 @@ export default function SplitsPage() {
             <>
               {[
                 { label: `Over 30 — m. moms`, val: formatDKK(data.bruce.over30), color: '#6b5ca5' },
-                { label: '+ Moms 25%', val: formatDKK(data.bruce.vat), color: '#9a6200', indent: true },
+                { label: 'Heraf moms', val: formatDKK(data.bruce.vat), color: '#9a6200', indent: true },
                 { label: `Under 30 — u. moms`, val: formatDKK(data.bruce.under30), color: '#2e8b6a' },
               ].map((r, i) => (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f0eef8', paddingLeft: r.indent ? 16 : 0 }}>
