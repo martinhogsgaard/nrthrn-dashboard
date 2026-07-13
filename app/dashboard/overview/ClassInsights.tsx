@@ -44,17 +44,25 @@ const weekdayLabel: Record<string, string> = {
   fredag: 'Fre', lørdag: 'Lør', søndag: 'Søn',
 }
 
+function DiffBadge({ val, prev, suffix = '' }: { val: number; prev: number | undefined; suffix?: string }) {
+  if (prev === undefined || prev === null) return null
+  const diff = val - prev
+  if (diff === 0) return <span style={{ fontSize: 11, color: '#8a85a0', marginLeft: 6 }}>vs {prev}{suffix}</span>
+  const up = diff > 0
+  return (
+    <span style={{ fontSize: 11, color: up ? '#2e8b6a' : '#c0392b', marginLeft: 6, fontWeight: 600 }}>
+      {up ? '▲' : '▼'} {Math.abs(diff)}{suffix}
+    </span>
+  )
+}
+
 function StatWithCompare({ label, val, prev, suffix = '' }: { label: string; val: number; prev: number | undefined; suffix?: string }) {
   return (
     <div style={{ background: '#f8f7fc', borderRadius: 8, padding: '14px 16px' }}>
       <div style={{ fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 6 }}>{label}</div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 26, fontWeight: 700, color: '#1a1520' }}>{val}{suffix}</span>
-        {prev !== undefined && prev !== null && (
-          <span style={{ fontSize: 12, color: '#8a85a0' }}>
-            vs <span style={{ fontWeight: 600, color: val >= prev ? '#2e8b6a' : '#c0392b' }}>{prev}{suffix}</span>
-          </span>
-        )}
+        <DiffBadge val={val} prev={prev} suffix={suffix} />
       </div>
     </div>
   )
@@ -77,6 +85,7 @@ function BarList({ title, rows, compareMap, nameKey, onSelect, selected }: {
         {rows.map((r, i) => {
           const prev = compareMap.get(r.name)
           const isSelected = selected === r.name
+          const diff = prev !== undefined ? r.avg_occupancy - prev.avg_occupancy : null
           return (
             <div key={i} onClick={() => onSelect(isSelected ? '' : r.name)}
               style={{ cursor: 'pointer', padding: '6px 8px', borderRadius: 6, background: isSelected ? '#f2f0f9' : 'transparent' }}
@@ -85,12 +94,15 @@ function BarList({ title, rows, compareMap, nameKey, onSelect, selected }: {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                 <span style={{ fontSize: 12, fontWeight: isSelected ? 700 : 500, color: '#1a1520' }}>{r.name}</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#1a1520' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#1a1520', display: 'flex', alignItems: 'center', gap: 4 }}>
                   {r.avg_occupancy}%
-                  {prev !== undefined && (
-                    <span style={{ fontSize: 10, color: r.avg_occupancy >= prev.avg_occupancy ? '#2e8b6a' : '#c0392b', marginLeft: 4 }}>
-                      ({prev.avg_occupancy}%)
+                  {diff !== null && diff !== 0 && (
+                    <span style={{ fontSize: 10, fontWeight: 600, color: diff > 0 ? '#2e8b6a' : '#c0392b' }}>
+                      {diff > 0 ? '▲' : '▼'} {Math.abs(diff)}%
                     </span>
+                  )}
+                  {diff === 0 && prev !== undefined && (
+                    <span style={{ fontSize: 10, color: '#8a85a0' }}>–</span>
                   )}
                 </span>
               </div>
@@ -207,7 +219,6 @@ export default function ClassInsights({ location, start, end }: { location: stri
   for (const wd of cur.heatmap.weekday_order) weekdayAgg[wd] = { sessions: 0, participants: 0, capacitySum: 0 }
   for (const cell of cur.heatmap.cells) {
     weekdayAgg[cell.weekday].sessions += cell.sessions
-    // Vi har ikke participants/capacity direkte her, så vi bruger den allerede beregnede avg_occupancy vægtet med sessions
     weekdayAgg[cell.weekday].participants += cell.avg_occupancy * cell.sessions
     weekdayAgg[cell.weekday].capacitySum += cell.sessions
   }
@@ -302,7 +313,7 @@ export default function ClassInsights({ location, start, end }: { location: stri
         )}
       </div>
 
-      {/* Toplinje nøgletal med begge tal */}
+      {/* Toplinje nøgletal med difference-pil */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 24 }}>
         <StatWithCompare label="Hold afholdt" val={cur.sessions_total} prev={cmp?.sessions_total} />
         <StatWithCompare label="Deltagere" val={cur.participants_total} prev={cmp?.participants_total} />
