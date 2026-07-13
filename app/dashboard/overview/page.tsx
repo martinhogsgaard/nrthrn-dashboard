@@ -115,8 +115,8 @@ export default function OverviewPage() {
         ))}
       </div>
 
-      <ClassInsights location="48718" start={start} end={end} />
-      
+      <ClassInsights location="48718" start={start} end={start <= defaultEnd && end === defaultEnd ? now.toISOString().split('T')[0] : end} />
+
       {/* Række 4 — Løn */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, marginBottom: 16 }}>
         <div style={{ background: '#f2f0f9', border: '1px solid #d0c8e8', borderRadius: 10, padding: 24 }}>
