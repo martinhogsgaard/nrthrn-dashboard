@@ -121,7 +121,7 @@ export default function SalgPage() {
   }
 
   if (loading) return <div style={{ padding: 40, color: '#8a85a0', textAlign: 'center' }}>Henter data...</div>
-
+  
   const noSnapshot = (stats as any)?.no_snapshot
 
   return (
@@ -148,7 +148,7 @@ export default function SalgPage() {
       </div>
 
       {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
+      {!noSnapshot && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
         {[
           { label: 'Aktive medlemmer', val: stats?.total_active || 0, sub: `${stats?.paying_members} betalende · ${stats?.free_members} gratis` },
           { label: 'MRR', val: formatDKK(stats?.total_mrr || 0), sub: 'Betalende abonnementer' },
@@ -161,9 +161,10 @@ export default function SalgPage() {
             <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 6 }}>{k.sub}</div>
           </div>
         ))}
-      </div>
+      </div>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 20 }}>
+      {!noSnapshot && (
+<div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 20 }}>
 
         {/* Venstre — abonnementer */}
         <div>
@@ -297,6 +298,7 @@ export default function SalgPage() {
 
         </div>
       </div>
+)}
     </div>
   )
 }
