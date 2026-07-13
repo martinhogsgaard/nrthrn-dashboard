@@ -298,7 +298,7 @@ export default function SplitsPage() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 {o.age_group !== 'under30' && (
-                  <span style={{ fontSize: 10, color: '#9a6200' }}>+moms {formatDKK(Math.round(o.total * 0.25))}</span>
+                  <span style={{ fontSize: 10, color: '#9a6200' }}>+moms {formatDKK(Math.round(o.total / 1.25 * 0.25))}</span>
                 )}
                 <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 16, fontWeight: 700 }}>{formatDKK(o.total)}</span>
               </div>
