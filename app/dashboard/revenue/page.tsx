@@ -46,7 +46,7 @@ export default function SalgPage() {
   function loadData() {
     setLoading(true)
     Promise.all([
-      fetch('/api/members?location=48718').then(r => r.json()),
+      fetch(`/api/members?location=48718&start=${period.start}`).then(r => r.json()),
       fetch(`/api/splits?start=${period.start}&end=${period.end}&location=48718`).then(r => r.json()),
     ]).then(([membersData, splitsData]) => {
       setStats(membersData.stats)
@@ -122,9 +122,17 @@ export default function SalgPage() {
 
   if (loading) return <div style={{ padding: 40, color: '#8a85a0', textAlign: 'center' }}>Henter data...</div>
 
+  const noSnapshot = (stats as any)?.no_snapshot
+
   return (
     <div>
       <SecLabel>Salg — København</SecLabel>
+
+      {noSnapshot && (
+        <div style={{ background: '#fff3d4', border: '1px solid #f0d080', borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: 12, color: '#9a6200' }}>
+          ⚠ Ingen historisk snapshot for denne periode — abonnementstal vises som nuværende live-data
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 24, alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ fontSize: 11, color: '#8a85a0', fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase' }}>Periode:</div>
