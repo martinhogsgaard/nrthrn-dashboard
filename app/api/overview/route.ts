@@ -108,7 +108,7 @@ export async function GET(request: Request) {
 
   // Split%
   const totalOver30 = mrrOver30 + mrrOther + ordersOver30 + bruceRevenue + equipmentRevenue
-  const totalRevenue = totalMRR + totalSales + bruceRevenue + equipmentRevenue
+  const totalRevenue = totalSales + bruceRevenue + equipmentRevenue
   const splitPct = totalRevenue > 0 ? Math.round(totalOver30 / totalRevenue * 100) : 0
 
   // Avg besøg
