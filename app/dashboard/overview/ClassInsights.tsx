@@ -172,8 +172,9 @@ export default function ClassInsights({ location, start, end }: { location: stri
     const s = new Date(start)
     const e = new Date(end)
     if (isNaN(s.getTime()) || isNaN(e.getTime())) return
-    s.setFullYear(s.getFullYear() - 1)
-    e.setFullYear(e.getFullYear() - 1)
+    // Default: samme periode én måned tilbage (ikke et år)
+    s.setMonth(s.getMonth() - 1)
+    e.setMonth(e.getMonth() - 1)
     const cs = s.toISOString().split('T')[0]
     const ce = e.toISOString().split('T')[0]
     setCompareStart(cs)
