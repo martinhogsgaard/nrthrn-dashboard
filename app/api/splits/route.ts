@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     { data: settingsData },
     { data: bruceRates },
   ] = await Promise.all([
-    supabase.from('membership_cache').select('*').eq('purchase_location_id', location).eq('status', 'active').gt('next_charge_date', new Date().toISOString()),
+    supabase.from('membership_cache').select('*').eq('purchase_location_id', location).eq('status', 'active').or(`next_charge_date.gt.${new Date().toISOString()},next_charge_date.is.null`),
     supabase.from('orders_cache').select('total, summary').eq('location_id', location).gte('date_placed', start).lte('date_placed', end + 'T23:59:59Z'),
     supabase.from('sessions_cache').select('*').eq('location_id', location).gte('date', start).lte('date', end),
     supabase.from('employees').select('*, salary_rates(*)').eq('is_active', true),
