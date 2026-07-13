@@ -164,7 +164,7 @@ export default function SalgPage() {
         ))}
       </div>}
 
-      {!noSnapshot && (
+      <>
 <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 20 }}>
 
         {/* Venstre — abonnementer */}
@@ -299,7 +299,7 @@ export default function SalgPage() {
 
         </div>
       </div>
-)}
+</>
     </div>
   )
 }
