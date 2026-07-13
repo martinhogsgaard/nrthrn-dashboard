@@ -122,7 +122,6 @@ export default function SalgPage() {
 
   if (loading) return <div style={{ padding: 40, color: '#8a85a0', textAlign: 'center' }}>Henter data...</div>
   
-  const noSnapshot = !(stats) || (membersData as any)?.no_snapshot
 
   return (
     <div>
