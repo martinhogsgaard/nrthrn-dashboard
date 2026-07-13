@@ -37,6 +37,7 @@ export default function SalgPage() {
   const [orders, setOrders] = useState<OrderItem[]>([])
   const [totalOrders, setTotalOrders] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [noSnapshot, setNoSnapshot] = useState(false)
 
   const now = new Date()
   const defaultStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
@@ -50,6 +51,7 @@ export default function SalgPage() {
       fetch(`/api/splits?start=${period.start}&end=${period.end}&location=48718`).then(r => r.json()),
     ]).then(([membersData, splitsData]) => {
       setStats(membersData.stats)
+      setNoSnapshot(membersData.no_snapshot === true)
       setMemberships(membersData.memberships)
       setFreeMemberships(membersData.free_memberships || [])
       setOrders(splitsData.orders?.breakdown || [])
