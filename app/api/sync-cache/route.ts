@@ -219,6 +219,54 @@ export async function GET(request: Request) {
     results.memberships = `Fejl: ${e.message}`
   }
 
+  // 3b. Snapshot membership breakdown — kører kun d. 1. i måneden
+  try {
+    const isFirstOfMonth = now.getDate() === 1
+    if (isFirstOfMonth) {
+      const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
+      const snapshotMonth = new Date(prevMonthEnd.getFullYear(), prevMonthEnd.getMonth(), 1)
+        .toISOString().split('T')[0]
+
+      for (const locId of ['48718', '48717']) {
+        const { data: memberships } = await supabase
+          .from('membership_cache')
+          .select('membership_name, renewal_rate, age_group, purchase_location_id')
+          .eq('purchase_location_id', locId)
+          .eq('status', 'active')
+
+        if (!memberships) continue
+
+        const grouped: Record<string, { count: number; mrr: number; renewal_rate: number; age_group: string }> = {}
+        for (const m of memberships) {
+          if (!grouped[m.membership_name]) {
+            grouped[m.membership_name] = { count: 0, mrr: 0, renewal_rate: m.renewal_rate || 0, age_group: m.age_group || 'other' }
+          }
+          grouped[m.membership_name].count++
+          grouped[m.membership_name].mrr += m.renewal_rate || 0
+        }
+
+        const snapshots = Object.entries(grouped).map(([name, d]) => ({
+          month: snapshotMonth,
+          location_id: locId,
+          membership_name: name,
+          count: d.count,
+          mrr: Math.round(d.mrr),
+          age_group: d.age_group,
+          renewal_rate: d.renewal_rate,
+        }))
+
+        if (snapshots.length > 0) {
+          await supabase.from('membership_snapshots').upsert(snapshots, { onConflict: 'month,location_id,membership_name' })
+        }
+      }
+      results.membership_snapshot = `Breakdown snapshot gemt for ${snapshotMonth}`
+    } else {
+      results.membership_snapshot = `Springer over — kun d. 1. i måneden`
+    }
+  } catch (e: any) {
+    results.membership_snapshot = `Fejl: ${e.message}`
+  }
+  
   // 4. Sync orders — begge lokationer, kun til og med i går
   try {
     let allOrders: any[] = []
