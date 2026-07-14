@@ -8,7 +8,7 @@ interface OverviewData {
   mrr: number
   total_sales: number
   total_revenue: number
-  bruce: { visits: number, revenue: number, rate: number }
+  bruce: { revenue: number, breakdown: { label: string, amount: number, isEstimated: boolean }[] }
   members: number
   new_members: number
   avg_visits: number
@@ -88,9 +88,9 @@ export default function OverviewPage() {
         {[
           { label: 'MRR', val: formatDKK(data.mrr), sub: data.members + ' aktive abonnementer' },
           { label: 'Total salg denne periode', val: formatDKK(data.total_sales || 0), sub: 'Klipkort, events og løssalg' },
-          { label: 'Bruce-indtægt', val: formatDKK(data.bruce?.revenue || 0), sub: (data.bruce?.visits || 0) + ' besøg · ' + (data.bruce?.rate || 95) + ' kr./besøg', color: '#1a1228' },
+          { label: 'Bruce-indtægt', val: formatDKK(data.bruce?.revenue || 0), sub: (data.bruce?.breakdown || []).map((b: any) => `${b.label}: ${b.isEstimated ? 'est.' : 'faktisk'}`).join(' · '), color: '#1a1228' },
           { label: 'NRTHRN Salg', val: formatDKK(data.equipment_sales || 0), sub: 'Udstyr og maskiner' },
-          { label: 'Samlet omsætning', val: formatDKK(data.total_revenue || data.mrr), sub: 'MRR + køb + Bruce + salg' },
+          { label: 'Samlet omsætning', val: formatDKK(data.total_revenue || 0), sub: 'Køb + Bruce + udstyr' },
         ].map((k: any, i) => (
           <div key={i} style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: '18px 16px', borderTop: '3px solid ' + (k.color || '#6b5ca5') }}>
             <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 10 }}>{k.label}</div>

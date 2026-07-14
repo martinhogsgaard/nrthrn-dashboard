@@ -37,7 +37,7 @@ export async function GET(request: Request) {
     supabase.from('members').select('is_over_30').not('birth_date', 'is', null),
     supabase.from('members').select('id').gte('joined_date', monthStart).lte('joined_date', today),
     supabase.from('sessions_cache').select('date, bruce_spots').eq('location_id', location).gte('date', monthStart).lte('date', today).gt('bruce_spots', 0),
-    supabase.from('bruce_rates').select('rate_per_visit').eq('month', monthStart).single(),
+    supabase.from('bruce_rates').select('*').gte('month', monthStart).lte('month', monthEnd).eq('is_estimated', false),
     supabase.from('orders_cache').select('total, summary').eq('location_id', location).gte('date_placed', monthStart).lte('date_placed', today + 'T23:59:59Z'),
     supabase.from('equipment_sales').select('sale_price, quantity').eq('location_id', location).gte('sale_date', monthStart).lte('sale_date', today),
     supabase.from('class_type_rules').select('*').eq('location_id', location),
@@ -95,9 +95,35 @@ export async function GET(request: Request) {
   const under30 = members?.filter(m => m.is_over_30 === false).length || 0
 
   // Bruce
-  const bruceRate = (bruceRateData as any)?.rate_per_visit || 95
-  const totalBruceVisits = bruceSessions?.reduce((s, x) => s + (x.bruce_spots || 0), 0) || 0
-  const bruceRevenue = Math.round(totalBruceVisits * bruceRate)
+  const periodMonths: string[] = []
+const cursor = new Date(monthStart)
+const periodEnd = new Date(monthEnd)
+while (cursor <= periodEnd) {
+  const ym = cursor.toISOString().slice(0, 7)
+  if (!periodMonths.includes(ym)) periodMonths.push(ym)
+  cursor.setMonth(cursor.getMonth() + 1)
+}
+
+let bruceRevenue = 0
+const bruceBreakdown: { label: string; amount: number; isEstimated: boolean }[] = []
+
+for (const ym of periodMonths) {
+  const actualRate = (bruceRateData as any[] || []).find((r: any) => r.month.slice(0, 7) === ym)
+  if (actualRate) {
+    const amount = Math.round(
+      ((actualRate.visits_vat || 0) + (actualRate.no_shows_vat || 0) +
+       (actualRate.visits_no_vat || 0) + (actualRate.no_shows_no_vat || 0)) * actualRate.rate_per_visit
+    )
+    bruceRevenue += amount
+    bruceBreakdown.push({ label: ym, amount, isEstimated: false })
+  } else {
+    const monthSessions = (bruceSessions || []).filter((s: any) => s.date.slice(0, 7) === ym)
+    const visits = monthSessions.reduce((s: number, x: any) => s + (x.bruce_spots || 0), 0)
+    const amount = Math.round(visits * 95)
+    if (amount > 0) bruceBreakdown.push({ label: ym, amount, isEstimated: true })
+    bruceRevenue += amount
+  }
+}
 
   // Orders fra cache
   const totalSales = Math.round((orders || []).reduce((s, o) => s + Number(o.total), 0))
@@ -139,7 +165,7 @@ export async function GET(request: Request) {
     period: { start: monthStart, today, end: monthEnd },
     mrr: totalMRR,
     total_sales: totalSales,
-    bruce: { visits: totalBruceVisits, revenue: bruceRevenue, rate: bruceRate },
+    bruce: { revenue: bruceRevenue, breakdown: bruceBreakdown },
     equipment_sales: equipmentRevenue,
     total_revenue: Math.round(totalRevenue),
     members: memberships?.length || 0,
