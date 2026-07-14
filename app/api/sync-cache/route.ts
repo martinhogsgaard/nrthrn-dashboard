@@ -286,19 +286,26 @@ export async function GET(request: Request) {
 
     const ordersToUpsert = allOrders
       .filter(o =>
-  (o.attributes.status === 'Completed' || o.attributes.status === 'Refunded' || o.attributes.status === 'Partially Refunded') &&
-  o.attributes.date_placed <= ordersEnd + 'T23:59:59Z'
-)
-.map((o: any) => ({
-  id: o.id,
-  date_placed: o.attributes.date_placed,
-  location: o.attributes.location,
-  location_id: o.attributes.location === 'Copenhagen' ? '48718' : o.attributes.location === 'Flatiron' ? '48717' : null,
-  status: o.attributes.status,
-  total: o.attributes.status === 'Refunded' ? -o.attributes.total : o.attributes.total,
-  summary: o.attributes.summary?.[0] || null,
-  updated_at: new Date().toISOString(),
-}))
+        (o.attributes.status === 'Completed' ||
+         o.attributes.status === 'Refunded' ||
+         o.attributes.status === 'Partially Refunded') &&
+        o.attributes.date_placed <= ordersEnd + 'T23:59:59Z'
+      )
+      .map((o: any) => ({
+        id: o.id,
+        order_number: o.attributes.number,
+        date_placed: o.attributes.date_placed,
+        location: o.attributes.location,
+        location_id: o.attributes.location === 'Copenhagen' ? '48718' : o.attributes.location === 'Flatiron' ? '48717' : null,
+        status: o.attributes.status,
+        // net_total = brutto minus refunderet. MT's egen nettoberegning.
+        total: o.attributes.net_total,
+        net_total: o.attributes.net_total,
+        total_refunded: o.attributes.total_amount_refunded ?? 0,
+        contains_refund: o.attributes.contains_refund ?? false,
+        summary: o.attributes.summary?.join(', ') || null,
+        updated_at: new Date().toISOString(),
+      }))
 
     if (ordersToUpsert.length > 0) {
       const { error } = await supabase.from('orders_cache').upsert(ordersToUpsert, { onConflict: 'id' })
