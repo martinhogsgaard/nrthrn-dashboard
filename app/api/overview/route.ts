@@ -38,8 +38,8 @@ export async function GET(request: Request) {
     supabase.from('members').select('id').gte('joined_date', monthStart).lte('joined_date', today),
     supabase.from('sessions_cache').select('date, bruce_spots').eq('location_id', location).gte('date', monthStart).lte('date', today).gt('bruce_spots', 0),
     supabase.from('bruce_rates').select('*').gte('month', monthStart).lte('month', monthEnd).eq('is_estimated', false),
-    supabase.from('orders_cache').select('total, summary').eq('location_id', location).gte('date_placed', monthStart).lte('date_placed', today + 'T23:59:59Z'),
-    supabase.from('equipment_sales').select('sale_price, quantity').eq('location_id', location).gte('sale_date', monthStart).lte('sale_date', today),
+    supabase.from('orders_cache').select('total, summary').eq('location_id', location).gte('date_placed', monthStart).lte('date_placed', monthEnd + 'T23:59:59Z'),
+    supabase.from('equipment_sales').select('sale_price, quantity').eq('location_id', location).gte('sale_date', monthStart).lte('sale_date', monthEnd),
     supabase.from('class_type_rules').select('*').eq('location_id', location),
   ])
 
