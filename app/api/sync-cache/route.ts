@@ -141,7 +141,7 @@ export async function GET(request: Request) {
   const sessionStart = searchParams.get('start') || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
   const sessionEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
   const ordersStart = searchParams.get('start') || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-  const ordersEnd = yesterday
+  const ordersEnd = searchParams.get('end') || yesterday
 
   const results: any = {}
 
@@ -271,18 +271,24 @@ export async function GET(request: Request) {
   try {
     let allOrders: any[] = []
     let page = 1
+    let totalPages = 1
 
-    while (page <= 100) {
+    while (page <= totalPages && page <= 500) {
       const res = await fetch(
-        `${MT_BASE}/orders?min_datetime=${ordersStart}&per_page=100&page=${page}`,
+        `${MT_BASE}/orders?min_datetime=${ordersStart}T00:00:00Z&max_datetime=${ordersEnd}T23:59:59Z&page=${page}`,
         { headers: MT_HEADERS }
       )
       const data = await res.json()
       if (!data.data?.length) break
+
       allOrders = [...allOrders, ...data.data]
-      if (data.meta?.pagination?.pages <= page) break
+
+      // MT dikterer selv sidestørrelsen — læs det faktiske sidetal fra meta
+      totalPages = data.meta?.pagination?.pages ?? 1
       page++
     }
+
+    console.log(`Orders: ${allOrders.length} hentet over ${page - 1} sider (MT meta: ${totalPages} sider)`)
 
     const ordersToUpsert = allOrders
       .filter(o =>
