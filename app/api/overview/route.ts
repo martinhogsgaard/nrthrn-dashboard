@@ -42,7 +42,6 @@ export async function GET(request: Request) {
     supabase.from('equipment_sales').select('sale_price, quantity').eq('location_id', location).gte('sale_date', monthStart).lte('sale_date', monthEnd),
     supabase.from('class_type_rules').select('*').eq('location_id', location),
   ])
-console.log('orders sample:', JSON.stringify(orders?.slice(0, 2)), 'length:', orders?.length)
 
   const historicSessions = allSessions?.filter(s => s.date <= today && !s.is_cancelled) || []
   const futureSessions = allSessions?.filter(s => s.date > today && !s.is_cancelled) || []
@@ -127,8 +126,8 @@ for (const ym of periodMonths) {
 }
 
   // Orders fra cache
-  const totalSales = Math.round((orders || []).reduce((s, o) => s + Number(o.subtotal), 0))
-const ordersOver30 = (orders || []).filter(o => !o.summary?.includes('under 30')).reduce((s, o) => s + Number(o.subtotal), 0)
+  const totalSales = Math.round((orders || []).reduce((s: number, o: any) => s + Number(o.subtotal), 0))
+const ordersOver30 = (orders || []).filter((o: any) => !o.summary?.includes('under 30')).reduce((s: number, o: any) => s + Number(o.subtotal), 0)
 
   // Udstyrssalg
   const equipmentRevenue = Math.round((equipmentSales || []).reduce((s, r) => s + (Number(r.sale_price) * r.quantity), 0))
