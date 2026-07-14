@@ -272,7 +272,7 @@ export async function GET(request: Request) {
     let allOrders: any[] = []
     let page = 1
 
-    while (page <= 50) {
+    while (page <= 100) {
       const res = await fetch(
         `${MT_BASE}/orders?min_datetime=${ordersStart}&per_page=100&page=${page}`,
         { headers: MT_HEADERS }
