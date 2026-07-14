@@ -38,10 +38,11 @@ export async function GET(request: Request) {
     supabase.from('members').select('id').gte('joined_date', monthStart).lte('joined_date', today),
     supabase.from('sessions_cache').select('date, bruce_spots').eq('location_id', location).gte('date', monthStart).lte('date', today).gt('bruce_spots', 0),
     supabase.from('bruce_rates').select('*').gte('month', monthStart).lte('month', monthEnd).eq('is_estimated', false),
-    supabase.from('orders_cache').select('total, summary').eq('location_id', location).gte('date_placed', monthStart).lte('date_placed', monthEnd + 'T23:59:59Z'),
+    supabase.rpc('get_orders_aggregated', { p_location: location, p_start: monthStart, p_end: monthEnd + 'T23:59:59Z' }),
     supabase.from('equipment_sales').select('sale_price, quantity').eq('location_id', location).gte('sale_date', monthStart).lte('sale_date', monthEnd),
     supabase.from('class_type_rules').select('*').eq('location_id', location),
   ])
+console.log('orders sample:', JSON.stringify(orders?.slice(0, 2)), 'length:', orders?.length)
 
   const historicSessions = allSessions?.filter(s => s.date <= today && !s.is_cancelled) || []
   const futureSessions = allSessions?.filter(s => s.date > today && !s.is_cancelled) || []
@@ -126,8 +127,8 @@ for (const ym of periodMonths) {
 }
 
   // Orders fra cache
-  const totalSales = Math.round((orders || []).reduce((s, o) => s + Number(o.total), 0))
-  const ordersOver30 = (orders || []).filter(o => !o.summary?.includes('under 30')).reduce((s, o) => s + Number(o.total), 0)
+  const totalSales = Math.round((orders || []).reduce((s, o) => s + Number(o.subtotal), 0))
+const ordersOver30 = (orders || []).filter(o => !o.summary?.includes('under 30')).reduce((s, o) => s + Number(o.subtotal), 0)
 
   // Udstyrssalg
   const equipmentRevenue = Math.round((equipmentSales || []).reduce((s, r) => s + (Number(r.sale_price) * r.quantity), 0))
