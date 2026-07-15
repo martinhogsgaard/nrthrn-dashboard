@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     { data: settingsData },
     { data: bruceRates },
   ] = await Promise.all([
-    supabase.from('membership_cache').select('*').eq('purchase_location_id', location).eq('status', 'active').or(`next_charge_date.gt.${new Date().toISOString()},next_charge_date.is.null`),
+    supabase.from('active_memberships').select('*').eq('purchase_location_id', location),
     supabase.from('orders_cache').select('total, summary').eq('location_id', location).gte('date_placed', start).lte('date_placed', end + 'T23:59:59Z'),
     supabase.from('sessions_cache').select('*').eq('location_id', location).gte('date', start).lte('date', end),
     supabase.from('employees').select('*, salary_rates(*)').eq('is_active', true),
@@ -66,10 +66,10 @@ export async function GET(request: Request) {
   const bruceTotal = bruceOver30 + bruceUnder30
   const bruceVat = Math.round(bruceOver30 * 0.25)
 
-  const totalOver30 = mrrOver30 + mrrOther + ordersOver30 + bruceOver30
-  const totalUnder30 = mrrUnder30 + ordersUnder30 + bruceUnder30
+  const totalOver30 = ordersOver30 + bruceOver30
+  const totalUnder30 = ordersUnder30 + bruceUnder30
   const totalRevenue = totalOver30 + totalUnder30
-  const vatAmount = Math.round((mrrOver30 + mrrOther + ordersOver30) / 1.25 * 0.25 + bruceOver30 * 0.25)
+  const vatAmount = Math.round(ordersOver30 / 1.25 * 0.25 + bruceOver30 * 0.25)
   const over30Pct = totalRevenue > 0 ? Math.round(totalOver30 / totalRevenue * 100) : 0
   const under30Pct = 100 - over30Pct
 

@@ -242,7 +242,7 @@ export default function SplitsPage() {
         <div style={{ fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: '#6b5ca5', fontWeight: 700, marginBottom: 16 }}>Samlet moms at afregne denne periode</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 20 }}>
           {[
-            { label: 'Total omsætning', val: formatDKK(data.total_revenue.total), sub: `MRR + nye køb + Bruce` },
+            { label: 'Total omsætning', val: formatDKK(data.total_revenue.total), sub: `Faktiske køb + Bruce` },
             { label: 'Momspligtig (over 30)', val: formatDKK(data.total_revenue.over30), sub: `${data.split_pct.over30}% af omsætning`, color: '#6b5ca5' },
             { label: 'Moms at afregne (25%)', val: formatDKK(data.total_revenue.vat), sub: `Skal angives til SKAT`, color: '#9a6200' },
           ].map((k, i) => (

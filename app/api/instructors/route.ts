@@ -12,7 +12,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from('employees')
-    .select('*, salary_rates(*), employee_roles(*)')
+    .select('*, salary_rates(id, rate_per_class, bonus_tier_2, bonus_tier_3, bonus_tier_4, valid_from, valid_to), employee_roles(*)')
     .order('name')
 
   if (!all) {

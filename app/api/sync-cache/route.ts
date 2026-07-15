@@ -104,7 +104,7 @@ async function syncMemberships(locationId: string) {
 
   while (page <= totalPages) {
     const res = await fetch(
-      `${MT_BASE}/membership_instances?status=active&purchase_location=${locationId}&per_page=100&page=${page}`,
+      `${MT_BASE}/membership_instances?purchase_location=${locationId}&page=${page}`,
       { headers: MT_HEADERS }
     )
     const data = await res.json()
@@ -269,26 +269,46 @@ export async function GET(request: Request) {
 
   // 4. Sync orders — begge lokationer, kun til og med i går
   try {
-    let allOrders: any[] = []
+    const allOrders: any[] = []
     let page = 1
     let totalPages = 1
 
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
     while (page <= totalPages && page <= 500) {
-      const res = await fetch(
-        `${MT_BASE}/orders?min_datetime=${ordersStart}T00:00:00Z&max_datetime=${ordersEnd}T23:59:59Z&page=${page}`,
-        { headers: MT_HEADERS }
-      )
-      const data = await res.json()
-      if (!data.data?.length) break
+      let data: any = null
 
-      allOrders = [...allOrders, ...data.data]
+      // Prøv op til 4 gange med voksende ventetid — MT rate-limiter
+      for (let attempt = 1; attempt <= 4; attempt++) {
+        try {
+          const res = await fetch(
+            `${MT_BASE}/orders?min_datetime=${ordersStart}T00:00:00Z&page=${page}`,
+            { headers: MT_HEADERS }
+          )
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          const text = await res.text()
+          if (!text) throw new Error('Tomt svar')
+          data = JSON.parse(text)
+          break
+        } catch (err: any) {
+          if (attempt === 4) throw new Error(`Side ${page} fejlede: ${err.message}`)
+          const wait = attempt * 2000
+          console.log(`  side ${page} fejl (${err.message}) — venter ${wait}ms`)
+          await sleep(wait)
+        }
+      }
 
-      // MT dikterer selv sidestørrelsen — læs det faktiske sidetal fra meta
+      if (!data?.data?.length) break
+      allOrders.push(...data.data)
+
       totalPages = data.meta?.pagination?.pages ?? 1
+      if (page % 25 === 0) console.log(`side ${page}/${totalPages} — ${allOrders.length} ordrer`)
+
       page++
+      await sleep(150)
     }
 
-    console.log(`Orders: ${allOrders.length} hentet over ${page - 1} sider (MT meta: ${totalPages} sider)`)
+    console.log(`Færdig: ${allOrders.length} ordrer hentet`)
 
     const ordersToUpsert = allOrders
       .filter(o =>

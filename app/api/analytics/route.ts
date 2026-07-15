@@ -39,7 +39,7 @@ export async function GET() {
     // MT orders fra maj 2026
     supabase.from('orders_cache').select('total, date_placed, summary, location_id').gte('date_placed', MT_START),
     // Aktive medlemmer
-    supabase.from('membership_cache').select('purchase_location_id, renewal_rate, status').eq('status', 'active'),
+    supabase.from('active_memberships').select('purchase_location_id, renewal_rate, status'),
     // Aldersfordeling
     supabase.from('arketa_clients').select('date_of_birth').eq('location_id', '48718').not('date_of_birth', 'is', null),
     supabase.from('arketa_clients').select('date_of_birth').eq('location_id', '48717').not('date_of_birth', 'is', null),
