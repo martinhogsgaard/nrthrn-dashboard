@@ -130,7 +130,7 @@ export default function SalgPage() {
 
       {/* KPI bokse — kun hvis snapshot */}
       {!noSnapshot && stats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12, marginBottom: 20 }}>
           <KpiBox
             label="Aktive medlemmer"
             value={stats.total_active}
@@ -141,13 +141,14 @@ export default function SalgPage() {
           />
           <KpiBox
             label="MRR"
-            value={`${formatDKK(stats.total_mrr)} kr.`}
+            value={formatDKK(stats.total_mrr)}
             rows={[
-              { label: '30+ abonnementer', value: `${formatDKK(stats.over30_mrr)} kr.` },
-              { label: 'Under 30 abonnementer', value: `${formatDKK(stats.under30_mrr)} kr.` },
-              { label: 'Sauna & fitness', value: `${formatDKK(stats.other_mrr)} kr.` },
+              { label: '30+ abonnementer', value: formatDKK(stats.over30_mrr) },
+              { label: 'Under 30 abonnementer', value: formatDKK(stats.under30_mrr) },
+              { label: 'Sauna & fitness', value: formatDKK(stats.other_mrr) },
             ]}
           />
+
           <KpiBox
             label="30+ abonnenter"
             value={stats.over30_total}
@@ -164,6 +165,15 @@ export default function SalgPage() {
             rows={[
               { label: 'Betalende', value: stats.under30_paying },
               { label: 'Gratis', value: stats.under30_free },
+            ]}
+          />
+          <KpiBox
+            label="Sauna & fitness"
+            value={stats.other_total}
+            color="#e67e22"
+            rows={[
+              { label: 'Betalende', value: stats.other_paying },
+              { label: 'Gratis', value: stats.other_free },
             ]}
           />
         </div>
@@ -191,8 +201,8 @@ export default function SalgPage() {
                     <tr key={i} style={{ borderBottom: '1px solid #f0eef8' }}>
                       <td style={{ padding: '10px 8px', fontWeight: 500 }}>{m.name}</td>
                       <td style={{ padding: '10px 8px', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 18, fontWeight: 700 }}>{m.count}</td>
-                      <td style={{ padding: '10px 8px', color: '#8a85a0' }}>{formatDKK(m.price)} kr.</td>
-                      <td style={{ padding: '10px 8px', fontWeight: 700 }}>{formatDKK(m.mrr)} kr.</td>
+                      <td style={{ padding: '10px 8px', color: '#8a85a0' }}>{formatDKK(m.price)}</td>
+                      <td style={{ padding: '10px 8px', fontWeight: 700 }}>{formatDKK(m.mrr)}</td>
                       <td style={{ padding: '10px 8px' }}>
                         <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 8, fontWeight: 600,
                           background: m.age_group === 'over30' ? '#f2f0f9' : m.age_group === 'under30' ? '#e8f5ef' : '#f0f0f0',
@@ -218,7 +228,7 @@ export default function SalgPage() {
                   <div key={i} style={{ marginBottom: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                       <span style={{ fontSize: 12, color: '#4a4560' }}>{r.label}</span>
-                      <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 16, fontWeight: 700, color: r.color }}>{formatDKK(r.val)} kr.</span>
+                      <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 16, fontWeight: 700, color: r.color }}>{formatDKK(r.val)}</span>
                     </div>
                     <div style={{ height: 6, background: '#f0eef8', borderRadius: 3 }}>
                       <div style={{ height: '100%', width: `${r.pct}%`, background: r.color, borderRadius: 3 }} />
@@ -236,7 +246,7 @@ export default function SalgPage() {
           <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24, marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 16 }}>
               <div style={{ fontSize: 9, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700 }}>Opkrævet denne periode</div>
-              <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 20, fontWeight: 700, color: '#1a1520' }}>{formatDKK(totalOrders)} kr.</div>
+              <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 20, fontWeight: 700, color: '#1a1520' }}>{formatDKK(totalOrders)}</div>
             </div>
             {[
               { label: 'Abonnementer', items: subscriptionOrders },
@@ -247,7 +257,7 @@ export default function SalgPage() {
               <div key={gi} style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid #f0eef8' }}>
                   {group.label} <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 14, fontWeight: 700, color: '#1a1520', float: 'right' }}>
-                    {formatDKK(group.items.reduce((s, o) => s + o.total, 0))} kr.
+                    {formatDKK(group.items.reduce((s, o) => s + o.total, 0))}
                   </span>
                 </div>
                 {group.items.map((o, i) => (
@@ -260,7 +270,7 @@ export default function SalgPage() {
                       </span>
                       <span style={{ fontSize: 12 }}>{o.name} ×{o.count}</span>
                     </div>
-                    <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 16, fontWeight: 700 }}>{formatDKK(o.total)} kr.</span>
+                    <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 16, fontWeight: 700 }}>{formatDKK(o.total)}</span>
                   </div>
                 ))}
               </div>

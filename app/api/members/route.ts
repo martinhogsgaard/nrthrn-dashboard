@@ -84,6 +84,9 @@ export async function GET(request: Request) {
     const under30Total = allMemberships.filter(m => m.age_group === 'under30').reduce((s, m) => s + m.count, 0)
     const under30Paying = memberships.filter(m => m.age_group === 'under30').reduce((s, m) => s + m.count, 0)
     const under30Free = freeMemberships.filter(m => m.age_group === 'under30').reduce((s, m) => s + m.count, 0)
+    const otherTotal = allMemberships.filter(m => m.age_group === 'other').reduce((s, m) => s + m.count, 0)
+    const otherPaying = memberships.filter(m => m.age_group === 'other').reduce((s, m) => s + m.count, 0)
+    const otherFree = freeMemberships.filter(m => m.age_group === 'other').reduce((s, m) => s + m.count, 0)
 
     return NextResponse.json({
       stats: {
@@ -100,6 +103,9 @@ export async function GET(request: Request) {
         under30_total: under30Total,
         under30_paying: under30Paying,
         under30_free: under30Free,
+        other_total: otherTotal,
+        other_paying: otherPaying,
+        other_free: otherFree,
         birthdate_coverage: memberStats?.length || 0,
         birthdate_over30: dbOver30,
         birthdate_under30: dbUnder30,
@@ -165,6 +171,9 @@ export async function GET(request: Request) {
   const under30Total = allMemberships.filter(m => m.age_group === 'under30').reduce((s, m) => s + m.count, 0)
   const under30Paying = memberships.filter(m => m.age_group === 'under30').reduce((s, m) => s + m.count, 0)
   const under30Free = freeMemberships.filter(m => m.age_group === 'under30').reduce((s, m) => s + m.count, 0)
+  const otherTotal = allMemberships.filter(m => m.age_group === 'other').reduce((s, m) => s + m.count, 0)
+  const otherPaying = memberships.filter(m => m.age_group === 'other').reduce((s, m) => s + m.count, 0)
+  const otherFree = freeMemberships.filter(m => m.age_group === 'other').reduce((s, m) => s + m.count, 0)
 
   return NextResponse.json({
     stats: {
@@ -181,6 +190,9 @@ export async function GET(request: Request) {
       under30_total: under30Total,
       under30_paying: under30Paying,
       under30_free: under30Free,
+      other_total: otherTotal,
+      other_paying: otherPaying,
+      other_free: otherFree,
       birthdate_coverage: memberStats?.length || 0,
       birthdate_over30: dbOver30,
       birthdate_under30: dbUnder30,
