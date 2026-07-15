@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { SecLabel, formatDKK } from '@/components/ui'
+
 interface MembershipType {
   name: string
   count: number
@@ -9,23 +10,55 @@ interface MembershipType {
   age_group: 'over30' | 'under30' | 'other'
   is_free: boolean
 }
+
 interface MemberStats {
   total_active: number
   paying_members: number
   free_members: number
   total_mrr: number
-  over30_count: number
-  under30_count: number
+  over30_mrr: number
+  under30_mrr: number
+  other_mrr: number
+  over30_total: number
+  over30_paying: number
+  over30_free: number
+  under30_total: number
+  under30_paying: number
+  under30_free: number
   birthdate_coverage: number
   birthdate_over30: number
   birthdate_under30: number
 }
+
 interface OrderItem {
   name: string
   count: number
   total: number
   age_group: 'over30' | 'under30' | 'other'
 }
+
+function KpiBox({ label, value, color, rows }: {
+  label: string
+  value: string | number
+  color?: string
+  rows: { label: string; value: string | number }[]
+}) {
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: '18px 16px', borderTop: `3px solid ${color || '#6b5ca5'}` }}>
+      <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 10 }}>{label}</div>
+      <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 28, fontWeight: 700, color: color || '#1a1520', lineHeight: 1, marginBottom: 10 }}>{value}</div>
+      <div style={{ borderTop: '1px solid #f0eef8', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {rows.map((r, i) => (
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 10, color: '#8a85a0' }}>{r.label}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#4a4560' }}>{r.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function SalgPage() {
   const [stats, setStats] = useState<MemberStats | null>(null)
   const [memberships, setMemberships] = useState<MembershipType[]>([])
@@ -34,10 +67,12 @@ export default function SalgPage() {
   const [totalOrders, setTotalOrders] = useState(0)
   const [loading, setLoading] = useState(true)
   const [noSnapshot, setNoSnapshot] = useState(false)
+
   const now = new Date()
   const defaultStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
   const defaultEnd = now.toISOString().split('T')[0]
   const [period, setPeriod] = useState({ start: defaultStart, end: defaultEnd })
+
   function loadData() {
     setLoading(true)
     Promise.all([
@@ -53,18 +88,20 @@ export default function SalgPage() {
       setLoading(false)
     })
   }
+
   useEffect(() => { loadData() }, [])
-  const over30MRR = memberships.filter(m => m.age_group === 'over30').reduce((s, m) => s + m.mrr, 0)
-  const under30MRR = memberships.filter(m => m.age_group === 'under30').reduce((s, m) => s + m.mrr, 0)
-  const otherMRR = memberships.filter(m => m.age_group === 'other').reduce((s, m) => s + m.mrr, 0)
+
   function isSubscription(name: string) { return name.includes('Monthly') || name.includes('Classes (') || name.includes('Warrior') || name.includes('Revival (') }
   function isClipcard(name: string) { return name.includes('Classes') && !name.includes('(') }
   function isEvent(name: string) { return name.includes('Event') || name.includes('Challenge') || name.includes('Marathon') }
+
   const subscriptionOrders = orders.filter(o => isSubscription(o.name))
   const clipcardOrders = orders.filter(o => !isSubscription(o.name) && isClipcard(o.name))
   const eventOrders = orders.filter(o => !isSubscription(o.name) && !isClipcard(o.name) && isEvent(o.name))
   const kioskOrders = orders.filter(o => !isSubscription(o.name) && !isClipcard(o.name) && !isEvent(o.name))
+
   if (loading) return <div style={{ padding: 40, color: '#8a85a0', textAlign: 'center' }}>Henter data...</div>
+
   return (
     <div>
       <SecLabel>Salg — København</SecLabel>
@@ -91,21 +128,44 @@ export default function SalgPage() {
         </button>
       </div>
 
-      {/* KPIs — kun hvis snapshot */}
-      {!noSnapshot && (
+      {/* KPI bokse — kun hvis snapshot */}
+      {!noSnapshot && stats && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
-          {[
-            { label: 'Aktive medlemmer', val: stats?.total_active || 0, sub: `${stats?.paying_members} betalende · ${stats?.free_members} gratis` },
-            { label: 'MRR', val: formatDKK(stats?.total_mrr || 0), sub: 'Betalende abonnementer' },
-            { label: '30+ abonnenter', val: stats?.over30_count || 0, sub: `MRR: ${formatDKK(over30MRR)}`, color: '#6b5ca5' },
-            { label: 'Under 30 abonnenter', val: stats?.under30_count || 0, sub: `MRR: ${formatDKK(under30MRR)}`, color: '#2e8b6a' },
-          ].map((k: any, i) => (
-            <div key={i} style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: '18px 16px', borderTop: '3px solid #6b5ca5' }}>
-              <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 600, marginBottom: 10 }}>{k.label}</div>
-              <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 28, fontWeight: 700, color: k.color || '#1a1520', lineHeight: 1 }}>{k.val}</div>
-              <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 6 }}>{k.sub}</div>
-            </div>
-          ))}
+          <KpiBox
+            label="Aktive medlemmer"
+            value={stats.total_active}
+            rows={[
+              { label: 'Betalende', value: stats.paying_members },
+              { label: 'Gratis', value: stats.free_members },
+            ]}
+          />
+          <KpiBox
+            label="MRR"
+            value={`${formatDKK(stats.total_mrr)} kr.`}
+            rows={[
+              { label: '30+ abonnementer', value: `${formatDKK(stats.over30_mrr)} kr.` },
+              { label: 'Under 30 abonnementer', value: `${formatDKK(stats.under30_mrr)} kr.` },
+              { label: 'Sauna & fitness', value: `${formatDKK(stats.other_mrr)} kr.` },
+            ]}
+          />
+          <KpiBox
+            label="30+ abonnenter"
+            value={stats.over30_total}
+            color="#6b5ca5"
+            rows={[
+              { label: 'Betalende', value: stats.over30_paying },
+              { label: 'Gratis', value: stats.over30_free },
+            ]}
+          />
+          <KpiBox
+            label="Under 30 abonnenter"
+            value={stats.under30_total}
+            color="#2e8b6a"
+            rows={[
+              { label: 'Betalende', value: stats.under30_paying },
+              { label: 'Gratis', value: stats.under30_free },
+            ]}
+          />
         </div>
       )}
 
@@ -116,7 +176,8 @@ export default function SalgPage() {
         {!noSnapshot && (
           <div>
             <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24, marginBottom: 16 }}>
-              <div style={{ fontSize: 9, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 4 }}>Aktive abonnementer — MRR snapshot</div><div style={{ fontSize: 10, color: '#8a85a0', marginBottom: 14, fontStyle: 'italic' }}>Viser abonnementernes samlede månedlige værdi — ikke hvad der er opkrævet i perioden</div>
+              <div style={{ fontSize: 9, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 4 }}>Aktive abonnementer — MRR snapshot</div>
+              <div style={{ fontSize: 10, color: '#8a85a0', marginBottom: 14, fontStyle: 'italic' }}>Viser abonnementernes samlede månedlige værdi — ikke hvad der er opkrævet i perioden</div>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid #e4e0f0' }}>
@@ -146,25 +207,27 @@ export default function SalgPage() {
             </div>
 
             {/* MRR Fordeling */}
-            <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
-              <div style={{ fontSize: 9, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 16 }}>MRR Fordeling</div>
-              {[
-                { label: '30+ abonnementer', val: over30MRR, color: '#6b5ca5', pct: stats?.total_mrr ? Math.round(over30MRR / stats.total_mrr * 100) : 0 },
-                { label: 'Under 30 abonnementer', val: under30MRR, color: '#2e8b6a', pct: stats?.total_mrr ? Math.round(under30MRR / stats.total_mrr * 100) : 0 },
-                { label: 'Øvrige (sauna, fitness osv.)', val: otherMRR, color: '#e67e22', pct: stats?.total_mrr ? Math.round(otherMRR / stats.total_mrr * 100) : 0 },
-              ].map((r, i) => (
-                <div key={i} style={{ marginBottom: 16 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ fontSize: 12, color: '#4a4560' }}>{r.label}</span>
-                    <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 16, fontWeight: 700, color: r.color }}>{formatDKK(r.val)} kr.</span>
+            {stats && (
+              <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
+                <div style={{ fontSize: 9, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 16 }}>MRR Fordeling</div>
+                {[
+                  { label: '30+ abonnementer', val: stats.over30_mrr, color: '#6b5ca5', pct: stats.total_mrr ? Math.round(stats.over30_mrr / stats.total_mrr * 100) : 0 },
+                  { label: 'Under 30 abonnementer', val: stats.under30_mrr, color: '#2e8b6a', pct: stats.total_mrr ? Math.round(stats.under30_mrr / stats.total_mrr * 100) : 0 },
+                  { label: 'Sauna & fitness', val: stats.other_mrr, color: '#e67e22', pct: stats.total_mrr ? Math.round(stats.other_mrr / stats.total_mrr * 100) : 0 },
+                ].map((r, i) => (
+                  <div key={i} style={{ marginBottom: 16 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 12, color: '#4a4560' }}>{r.label}</span>
+                      <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 16, fontWeight: 700, color: r.color }}>{formatDKK(r.val)} kr.</span>
+                    </div>
+                    <div style={{ height: 6, background: '#f0eef8', borderRadius: 3 }}>
+                      <div style={{ height: '100%', width: `${r.pct}%`, background: r.color, borderRadius: 3 }} />
+                    </div>
+                    <div style={{ fontSize: 10, color: '#8a85a0', marginTop: 3 }}>{r.pct}% af MRR</div>
                   </div>
-                  <div style={{ height: 6, background: '#f0eef8', borderRadius: 3 }}>
-                    <div style={{ height: '100%', width: `${r.pct}%`, background: r.color, borderRadius: 3 }} />
-                  </div>
-                  <div style={{ fontSize: 10, color: '#8a85a0', marginTop: 3 }}>{r.pct}% af MRR</div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -205,32 +268,32 @@ export default function SalgPage() {
           </div>
 
           {/* Fødselsdato dækning — kun hvis snapshot */}
-          {!noSnapshot && (
+          {!noSnapshot && stats && (
             <div style={{ background: '#fff', border: '1px solid #e4e0f0', borderRadius: 10, padding: 24 }}>
               <div style={{ fontSize: 9, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8a85a0', fontWeight: 700, marginBottom: 12 }}>Fødselsdato dækning</div>
               <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 36, fontWeight: 700, color: '#1a1520' }}>
-                {stats ? Math.round(stats.birthdate_coverage / stats.total_active * 100) : 0}%
+                {Math.round(stats.birthdate_coverage / stats.total_active * 100)}%
               </div>
               <div style={{ fontSize: 11, color: '#8a85a0', marginTop: 4, marginBottom: 16 }}>
-                {stats?.birthdate_coverage} med fødselsdato · {stats?.total_active} aktive abonnementer
+                {stats.birthdate_coverage} med fødselsdato · {stats.total_active} aktive abonnementer
               </div>
               <div style={{ display: 'flex', gap: 12 }}>
                 <div style={{ flex: 1, background: '#f2f0f9', border: '1px solid #d0c8e8', borderRadius: 8, padding: '12px 14px' }}>
                   <div style={{ fontSize: 9, color: '#6b5ca5', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 5 }}>Over 30</div>
-                  <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 24, fontWeight: 700, color: '#6b5ca5' }}>{stats?.birthdate_over30}</div>
+                  <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 24, fontWeight: 700, color: '#6b5ca5' }}>{stats.birthdate_over30}</div>
                   <div style={{ fontSize: 10, color: '#8a85a0', marginTop: 2 }}>
-                    {stats ? Math.round(stats.birthdate_over30 / stats.birthdate_coverage * 100) : 0}%
+                    {Math.round(stats.birthdate_over30 / stats.birthdate_coverage * 100)}%
                   </div>
                 </div>
                 <div style={{ flex: 1, background: '#e8f5ef', border: '1px solid #b0d8c4', borderRadius: 8, padding: '12px 14px' }}>
                   <div style={{ fontSize: 9, color: '#2e8b6a', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 5 }}>Under 30</div>
-                  <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 24, fontWeight: 700, color: '#2e8b6a' }}>{stats?.birthdate_under30}</div>
+                  <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 24, fontWeight: 700, color: '#2e8b6a' }}>{stats.birthdate_under30}</div>
                   <div style={{ fontSize: 10, color: '#8a85a0', marginTop: 2 }}>
-                    {stats ? Math.round(stats.birthdate_under30 / stats.birthdate_coverage * 100) : 0}%
+                    {Math.round(stats.birthdate_under30 / stats.birthdate_coverage * 100)}%
                   </div>
                 </div>
               </div>
-              {stats && stats.birthdate_coverage < stats.total_active && (
+              {stats.birthdate_coverage < stats.total_active && (
                 <div style={{ marginTop: 12, background: '#fff3d4', border: '1px solid #f0d080', borderRadius: 8, padding: '10px 14px', fontSize: 11, color: '#9a6200' }}>
                   ⚠ {stats.total_active - stats.birthdate_coverage} mangler fødselsdato
                 </div>

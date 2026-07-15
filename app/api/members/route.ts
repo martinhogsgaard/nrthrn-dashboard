@@ -6,6 +6,12 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!
 )
 
+function getAgeGroup(name: string): 'over30' | 'under30' | 'other' {
+  if (name.includes('30+')) return 'over30'
+  if (name.includes('under 30')) return 'under30'
+  return 'other'
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const location = searchParams.get('location') || '48718'
@@ -24,7 +30,6 @@ export async function GET(request: Request) {
   const dbUnder30 = memberStats?.filter(m => m.is_over_30 === false).length || 0
 
   if (isHistoric) {
-    // Hent fra membership_snapshots
     const snapshotMonth = `${requestedMonth}-01`
     const { data: snapshots, error } = await supabase
       .from('membership_snapshots')
@@ -33,7 +38,6 @@ export async function GET(request: Request) {
       .eq('month', snapshotMonth)
 
     if (error || !snapshots || snapshots.length === 0) {
-      // Ingen snapshot for denne måned — returner live data med advarsel
       return NextResponse.json({
         stats: null,
         memberships: [],
@@ -67,11 +71,19 @@ export async function GET(request: Request) {
       }))
       .sort((a, b) => b.count - a.count)
 
+    const allMemberships = [...memberships, ...freeMemberships]
     const totalMRR = memberships.reduce((s, m) => s + m.mrr, 0)
+    const over30MRR = memberships.filter(m => m.age_group === 'over30').reduce((s, m) => s + m.mrr, 0)
+    const under30MRR = memberships.filter(m => m.age_group === 'under30').reduce((s, m) => s + m.mrr, 0)
+    const otherMRR = memberships.filter(m => m.age_group === 'other').reduce((s, m) => s + m.mrr, 0)
     const payingCount = memberships.reduce((s, m) => s + m.count, 0)
     const freeCount = freeMemberships.reduce((s, m) => s + m.count, 0)
-    const over30Count = memberships.filter(m => m.age_group === 'over30').reduce((s, m) => s + m.count, 0)
-    const under30Count = memberships.filter(m => m.age_group === 'under30').reduce((s, m) => s + m.count, 0)
+    const over30Total = allMemberships.filter(m => m.age_group === 'over30').reduce((s, m) => s + m.count, 0)
+    const over30Paying = memberships.filter(m => m.age_group === 'over30').reduce((s, m) => s + m.count, 0)
+    const over30Free = freeMemberships.filter(m => m.age_group === 'over30').reduce((s, m) => s + m.count, 0)
+    const under30Total = allMemberships.filter(m => m.age_group === 'under30').reduce((s, m) => s + m.count, 0)
+    const under30Paying = memberships.filter(m => m.age_group === 'under30').reduce((s, m) => s + m.count, 0)
+    const under30Free = freeMemberships.filter(m => m.age_group === 'under30').reduce((s, m) => s + m.count, 0)
 
     return NextResponse.json({
       stats: {
@@ -79,8 +91,15 @@ export async function GET(request: Request) {
         paying_members: payingCount,
         free_members: freeCount,
         total_mrr: totalMRR,
-        over30_count: over30Count,
-        under30_count: under30Count,
+        over30_mrr: over30MRR,
+        under30_mrr: under30MRR,
+        other_mrr: otherMRR,
+        over30_total: over30Total,
+        over30_paying: over30Paying,
+        over30_free: over30Free,
+        under30_total: under30Total,
+        under30_paying: under30Paying,
+        under30_free: under30Free,
         birthdate_coverage: memberStats?.length || 0,
         birthdate_over30: dbOver30,
         birthdate_under30: dbUnder30,
@@ -97,7 +116,6 @@ export async function GET(request: Request) {
     .select('*')
     .eq('purchase_location_id', location)
     .eq('status', 'active')
-    .or(`next_charge_date.gt.${new Date().toISOString()},next_charge_date.is.null`)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   const paying = data.filter(t => t.renewal_rate > 0)
@@ -112,10 +130,11 @@ export async function GET(request: Request) {
   }, {})
 
   const memberships = Object.entries(grouped).map(([name, d]: [string, any]) => ({
-    name, count: d.count,
+    name,
+    count: d.count,
     price: Math.round(d.mrr / d.count),
     mrr: Math.round(d.mrr),
-    age_group: name.includes('30+') ? 'over30' : name.includes('under 30') ? 'under30' : 'other',
+    age_group: getAgeGroup(name),
     is_free: false,
   })).sort((a, b) => b.mrr - a.mrr)
 
@@ -127,14 +146,25 @@ export async function GET(request: Request) {
   }, {})
 
   const freeMemberships = Object.entries(freeGrouped).map(([name, d]: [string, any]) => ({
-    name, count: d.count, price: 0, mrr: 0,
-    age_group: 'other',
+    name,
+    count: d.count,
+    price: 0,
+    mrr: 0,
+    age_group: getAgeGroup(name),
     is_free: true,
   })).sort((a, b) => b.count - a.count)
 
+  const allMemberships = [...memberships, ...freeMemberships]
   const totalMRR = paying.reduce((s, m) => s + (m.renewal_rate || 0), 0)
-  const over30Count = memberships.filter(m => m.age_group === 'over30').reduce((s, m) => s + m.count, 0)
-  const under30Count = memberships.filter(m => m.age_group === 'under30').reduce((s, m) => s + m.count, 0)
+  const over30MRR = memberships.filter(m => m.age_group === 'over30').reduce((s, m) => s + m.mrr, 0)
+  const under30MRR = memberships.filter(m => m.age_group === 'under30').reduce((s, m) => s + m.mrr, 0)
+  const otherMRR = memberships.filter(m => m.age_group === 'other').reduce((s, m) => s + m.mrr, 0)
+  const over30Total = allMemberships.filter(m => m.age_group === 'over30').reduce((s, m) => s + m.count, 0)
+  const over30Paying = memberships.filter(m => m.age_group === 'over30').reduce((s, m) => s + m.count, 0)
+  const over30Free = freeMemberships.filter(m => m.age_group === 'over30').reduce((s, m) => s + m.count, 0)
+  const under30Total = allMemberships.filter(m => m.age_group === 'under30').reduce((s, m) => s + m.count, 0)
+  const under30Paying = memberships.filter(m => m.age_group === 'under30').reduce((s, m) => s + m.count, 0)
+  const under30Free = freeMemberships.filter(m => m.age_group === 'under30').reduce((s, m) => s + m.count, 0)
 
   return NextResponse.json({
     stats: {
@@ -142,8 +172,15 @@ export async function GET(request: Request) {
       paying_members: paying.length,
       free_members: free.length,
       total_mrr: totalMRR,
-      over30_count: over30Count,
-      under30_count: under30Count,
+      over30_mrr: over30MRR,
+      under30_mrr: under30MRR,
+      other_mrr: otherMRR,
+      over30_total: over30Total,
+      over30_paying: over30Paying,
+      over30_free: over30Free,
+      under30_total: under30Total,
+      under30_paying: under30Paying,
+      under30_free: under30Free,
       birthdate_coverage: memberStats?.length || 0,
       birthdate_over30: dbOver30,
       birthdate_under30: dbUnder30,
