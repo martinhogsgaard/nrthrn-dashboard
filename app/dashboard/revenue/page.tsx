@@ -25,6 +25,9 @@ interface MemberStats {
   under30_total: number
   under30_paying: number
   under30_free: number
+  other_total: number
+  other_paying: number
+  other_free: number
   birthdate_coverage: number
   birthdate_over30: number
   birthdate_under30: number
