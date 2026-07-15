@@ -133,6 +133,162 @@ async function syncMemberships(locationId: string) {
   return membershipsToUpsert.length
 }
 
+// ─── Inkrementel orders-sync ──────────────────────────────────────────────────
+// Design:
+//   1. Find nyeste date_placed i cachen → cutoff = max(nyeste_i_cache, nu−14 dage)
+//   2. Hent MT side for side med ordering=-date_placed (nyeste først)
+//   3. Upsert hver side direkte → ingen akkumulering i hukommelsen
+//   4. Stop når en ordre er ældre end cutoff
+//
+// Korrekt omsætning pr. ordre = total - total_amount_refunded
+// (net_total fra MT er 0 for refunderede og credit-betalte — bruges ikke)
+// ─────────────────────────────────────────────────────────────────────────────
+const RELEVANT_STATUSES = new Set(['Completed', 'Refunded', 'Partially Refunded'])
+const ORDERS_BATCH_SIZE = 10 // MT returnerer altid 10 — matcher sidestørrelse
+
+function mapOrder(o: any) {
+  const total = Number(o.attributes.total ?? 0)
+  const totalRefunded = Number(o.attributes.total_amount_refunded ?? 0)
+  return {
+    id: o.id,
+    order_number: o.attributes.number,
+    date_placed: o.attributes.date_placed,
+    location: o.attributes.location,
+    location_id:
+      o.attributes.location === 'Copenhagen' ? '48718'
+      : o.attributes.location === 'Flatiron' ? '48717'
+      : null,
+    status: o.attributes.status,
+    total: total,
+    net_total: total - totalRefunded,   // Korrekt omsætning
+    total_refunded: totalRefunded,
+    contains_refund: o.attributes.contains_refund ?? false,
+    summary: Array.isArray(o.attributes.summary)
+      ? o.attributes.summary.join(', ')
+      : (o.attributes.summary || null),
+    updated_at: new Date().toISOString(),
+  }
+}
+
+async function syncOrdersIncremental(): Promise<{
+  pages: number
+  upserted: number
+  skipped: number
+  cutoff: string
+  stopped_at: string | null
+}> {
+  const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+  // 1. Find cutoff: nyeste i cache, men aldrig mere end 14 dage tilbage
+  const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
+
+  const { data: latestRow, error: latestErr } = await supabase
+    .from('orders_cache')
+    .select('date_placed')
+    .order('date_placed', { ascending: false })
+    .limit(1)
+    .single()
+
+  if (latestErr && latestErr.code !== 'PGRST116') {
+    // PGRST116 = no rows — ok for første kørsel
+    throw new Error(`Cutoff-opslag fejlede: ${latestErr.message}`)
+  }
+
+  let cutoff: Date
+  if (latestRow?.date_placed) {
+    const latestInCache = new Date(latestRow.date_placed)
+    // Tag det ældste af de to: enten 14 dage tilbage eller nyeste i cache
+    // Dermed fanger vi altid sene refusioner inden for 14-dages vinduet
+    cutoff = latestInCache < fourteenDaysAgo ? latestInCache : fourteenDaysAgo
+  } else {
+    // Første kørsel: ingen cache — sæt cutoff langt tilbage så alt hentes
+    // I praksis kører man manuel fuld sync først, så dette er fallback
+    cutoff = fourteenDaysAgo
+  }
+
+  const cutoffISO = cutoff.toISOString()
+  console.log(`[orders] cutoff = ${cutoffISO}`)
+
+  // 2. Side-for-side: nyeste først, upsert pr. side, stop ved cutoff
+  let page = 1
+  let upserted = 0
+  let skipped = 0
+  let stoppedAt: string | null = null
+  let done = false
+
+  while (!done && page <= 500) {
+    // Retry-loop pr. side
+    let data: any = null
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      try {
+        const res = await fetch(
+          `${MT_BASE}/orders?ordering=-date_placed&page=${page}`,
+          { headers: MT_HEADERS }
+        )
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const text = await res.text()
+        if (!text.trim()) throw new Error('Tomt svar')
+        data = JSON.parse(text)
+        break
+      } catch (err: any) {
+        if (attempt === 4) throw new Error(`Side ${page} fejlede efter 4 forsøg: ${err.message}`)
+        const wait = attempt * 2000
+        console.log(`[orders] side ${page} fejl (${err.message}) — venter ${wait}ms`)
+        await sleep(wait)
+      }
+    }
+
+    const rows: any[] = data?.data ?? []
+    if (rows.length === 0) {
+      console.log(`[orders] side ${page}: tomt svar — afslutter`)
+      break
+    }
+
+    // Filtrer og upsert denne side direkte — ingen akkumulering
+    const toUpsert = rows
+      .filter(o => RELEVANT_STATUSES.has(o.attributes.status))
+      .map(mapOrder)
+
+    skipped += rows.length - toUpsert.length
+
+    if (toUpsert.length > 0) {
+      const { error } = await supabase
+        .from('orders_cache')
+        .upsert(toUpsert, { onConflict: 'id' })
+      if (error) throw new Error(`Upsert side ${page}: ${error.message}`)
+      upserted += toUpsert.length
+    }
+
+    // Tjek om den ældste ordre på siden er ældre end cutoff
+    // Siden er sorteret nyeste først — den sidste er den ældste
+    const oldestOnPage = rows[rows.length - 1]
+    const oldestDate = oldestOnPage?.attributes?.date_placed ?? ''
+    if (oldestDate && oldestDate < cutoffISO) {
+      stoppedAt = oldestDate
+      console.log(`[orders] side ${page}: ældste ordre ${oldestDate} < cutoff ${cutoffISO} — stopper`)
+      done = true
+    }
+
+    if (page % 10 === 0) {
+      console.log(`[orders] side ${page} — upserted ${upserted}, skipped ${skipped}`)
+    }
+
+    page++
+    await sleep(150) // Undgå MT rate-limit
+  }
+
+  return {
+    pages: page - 1,
+    upserted,
+    skipped,
+    cutoff: cutoffISO,
+    stopped_at: stoppedAt,
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const maxDuration = 300
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const yesterday = getYesterday()
@@ -140,8 +296,6 @@ export async function GET(request: Request) {
 
   const sessionStart = searchParams.get('start') || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
   const sessionEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
-  const ordersStart = searchParams.get('start') || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-  const ordersEnd = searchParams.get('end') || yesterday
 
   const results: any = {}
 
@@ -202,7 +356,7 @@ export async function GET(request: Request) {
     results.sessions = `Fejl: ${e.message}`
   }
 
-  // 2b. Sync class session types (til klassificering af rigtige hold vs. administrative bookinger)
+  // 2b. Sync class session types
   try {
     const count = await syncClassSessionTypes()
     results.class_session_types = `${count} class session types synkroniseret`
@@ -267,81 +421,21 @@ export async function GET(request: Request) {
     results.membership_snapshot = `Fejl: ${e.message}`
   }
 
-  // 4. Sync orders — begge lokationer, kun til og med i går
+  // 4. Inkrementel orders-sync
   try {
-    const allOrders: any[] = []
-    let page = 1
-    let totalPages = 1
-
-    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
-
-    while (page <= totalPages && page <= 500) {
-      let data: any = null
-
-      // Prøv op til 4 gange med voksende ventetid — MT rate-limiter
-      for (let attempt = 1; attempt <= 4; attempt++) {
-        try {
-          const res = await fetch(
-            `${MT_BASE}/orders?min_datetime=${ordersStart}T00:00:00Z&page=${page}`,
-            { headers: MT_HEADERS }
-          )
-          if (!res.ok) throw new Error(`HTTP ${res.status}`)
-          const text = await res.text()
-          if (!text) throw new Error('Tomt svar')
-          data = JSON.parse(text)
-          break
-        } catch (err: any) {
-          if (attempt === 4) throw new Error(`Side ${page} fejlede: ${err.message}`)
-          const wait = attempt * 2000
-          console.log(`  side ${page} fejl (${err.message}) — venter ${wait}ms`)
-          await sleep(wait)
-        }
-      }
-
-      if (!data?.data?.length) break
-      allOrders.push(...data.data)
-
-      totalPages = data.meta?.pagination?.pages ?? 1
-      if (page % 25 === 0) console.log(`side ${page}/${totalPages} — ${allOrders.length} ordrer`)
-
-      page++
-      await sleep(150)
-    }
-
-    console.log(`Færdig: ${allOrders.length} ordrer hentet`)
-
-    const ordersToUpsert = allOrders
-      .filter(o =>
-        (o.attributes.status === 'Completed' ||
-         o.attributes.status === 'Refunded' ||
-         o.attributes.status === 'Partially Refunded') &&
-        o.attributes.date_placed <= ordersEnd + 'T23:59:59Z'
-      )
-      .map((o: any) => ({
-        id: o.id,
-        order_number: o.attributes.number,
-        date_placed: o.attributes.date_placed,
-        location: o.attributes.location,
-        location_id: o.attributes.location === 'Copenhagen' ? '48718' : o.attributes.location === 'Flatiron' ? '48717' : null,
-        status: o.attributes.status,
-        // net_total = brutto minus refunderet. MT's egen nettoberegning.
-        total: o.attributes.net_total,
-        net_total: o.attributes.net_total,
-        total_refunded: o.attributes.total_amount_refunded ?? 0,
-        contains_refund: o.attributes.contains_refund ?? false,
-        summary: o.attributes.summary?.join(', ') || null,
-        updated_at: new Date().toISOString(),
-      }))
-
-    if (ordersToUpsert.length > 0) {
-      const { error } = await supabase.from('orders_cache').upsert(ordersToUpsert, { onConflict: 'id' })
-      results.orders = error ? `Fejl: ${error.message}` : `${ordersToUpsert.length} orders synkroniseret (til og med ${ordersEnd})`
-    }
+    const orderResult = await syncOrdersIncremental()
+    results.orders = [
+      `${orderResult.upserted} ordrer upserted`,
+      `${orderResult.pages} sider hentet`,
+      `cutoff: ${orderResult.cutoff.slice(0, 10)}`,
+      orderResult.stopped_at ? `stoppede ved ${orderResult.stopped_at.slice(0, 10)}` : 'kørte til ende',
+      orderResult.skipped > 0 ? `(${orderResult.skipped} skippet pga. status)` : '',
+    ].filter(Boolean).join(' | ')
   } catch (e: any) {
     results.orders = `Fejl: ${e.message}`
   }
 
-  // MRR Snapshot — kør kun d. 1. i måneden, gem forrige måneds MRR
+  // 5. MRR Snapshot — kør kun d. 1. i måneden, gem forrige måneds MRR
   try {
     const isFirstOfMonth = now.getDate() === 1
     if (isFirstOfMonth) {
@@ -349,7 +443,6 @@ export async function GET(request: Request) {
       const prevMonthStart = new Date(prevMonthEnd.getFullYear(), prevMonthEnd.getMonth(), 1)
       const snapshotMonth = `${prevMonthStart.getFullYear()}-${String(prevMonthStart.getMonth() + 1).padStart(2, '0')}-01`
 
-      // Hent alle aktive abonnementer der havde next_charge_date i forrige måned
       const { data: snapshotMemberships } = await supabase
         .from('membership_cache')
         .select('renewal_rate, status')
