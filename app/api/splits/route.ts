@@ -44,13 +44,15 @@ export async function GET(request: Request) {
   const totalMRR = mrrOver30 + mrrUnder30 + mrrOther
 
   // Orders fra cache — bruger net_total (total - refunderet) som korrekt omsætning
+  type OrderRow = { id: string; total: number; net_total: number; summary: string | null; status: string }
+  const orderRows: OrderRow[] = (orders || []) as OrderRow[]
   const isUnder30 = (summary: string | null) => summary?.includes('under 30') || summary?.includes('under30') || false
-  const ordersOver30 = (orders || []).filter(o => !isUnder30(o.summary)).reduce((s, o) => s + Number(o.net_total), 0)
-  const ordersUnder30 = (orders || []).filter(o => isUnder30(o.summary)).reduce((s, o) => s + Number(o.net_total), 0)
-  const totalOrders = (orders || []).reduce((s, o) => s + Number(o.net_total), 0)
+  const ordersOver30 = orderRows.filter(o => !isUnder30(o.summary)).reduce((s, o) => s + Number(o.net_total), 0)
+  const ordersUnder30 = orderRows.filter(o => isUnder30(o.summary)).reduce((s, o) => s + Number(o.net_total), 0)
+  const totalOrders = orderRows.reduce((s, o) => s + Number(o.net_total), 0)
 
   // Breakdown pr. produkt
-  const ordersGrouped = (orders || []).reduce((acc: any, o: any) => {
+  const ordersGrouped = orderRows.reduce((acc: any, o: OrderRow) => {
     const name = o.summary || 'Ukendt'
     if (!acc[name]) acc[name] = { count: 0, total: 0 }
     acc[name].count++
