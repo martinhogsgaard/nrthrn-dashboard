@@ -245,9 +245,8 @@ async function syncOrdersIncremental(): Promise<{
     }
 
     // Filtrer og upsert denne side direkte — ingen akkumulering
-    const toUpsert = rows
-      .filter(o => RELEVANT_STATUSES.has(o.attributes.status))
-      .map(mapOrder)
+    const relevantRows = rows.filter(o => RELEVANT_STATUSES.has(o.attributes.status))
+    const toUpsert = relevantRows.map(mapOrder)
 
     skipped += rows.length - toUpsert.length
 
@@ -257,6 +256,37 @@ async function syncOrdersIncremental(): Promise<{
         .upsert(toUpsert, { onConflict: 'id' })
       if (error) throw new Error(`Upsert side ${page}: ${error.message}`)
       upserted += toUpsert.length
+
+      // Hent purchased_items for hver ordre og gem i order_lines_cache
+      for (const row of relevantRows) {
+        try {
+          const res = await fetch(`${MT_BASE}/orders/${row.id}`, { headers: MT_HEADERS })
+          if (!res.ok) continue
+          const detail = await res.json()
+          const purchasedItems = detail?.data?.attributes?.purchased_items || []
+          if (purchasedItems.length === 0) continue
+
+          const orderMapped = mapOrder(row)
+          const lines = purchasedItems.map((item: any) => ({
+            id: item.order_line_id,
+            order_id: row.id,
+            product_title: item.product_title,
+            quantity: 1,
+            unit_price: parseFloat(item.price) || 0,
+            line_total: parseFloat(item.price_incl_tax) || 0,
+            refunded: item.refunded || false,
+            date_placed: row.attributes.date_placed,
+            location: row.attributes.location,
+            location_id: orderMapped.location_id,
+            updated_at: new Date().toISOString(),
+          }))
+
+          await supabase.from('order_lines_cache').upsert(lines, { onConflict: 'id' })
+          await sleep(150)
+        } catch {
+          // order_lines fejl stopper ikke sync
+        }
+      }
     }
 
     // Tjek om den ældste ordre på siden er ældre end cutoff
