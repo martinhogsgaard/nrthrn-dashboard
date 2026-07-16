@@ -13,7 +13,6 @@ export async function GET(request: Request) {
   const start = searchParams.get('start') || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
   const end = searchParams.get('end') || now.toISOString().split('T')[0]
 
-  // Hent alt fra Supabase parallelt — ingen live MT-kald
   const startMonth = start.slice(0, 7) + '-01'
   const endMonth = end.slice(0, 7) + '-01'
 
@@ -26,7 +25,12 @@ export async function GET(request: Request) {
     { data: bruceRates },
   ] = await Promise.all([
     supabase.from('active_memberships').select('*').eq('purchase_location_id', location),
-    supabase.from('orders_cache').select('total, summary').eq('location_id', location).gte('date_placed', start).lte('date_placed', end + 'T23:59:59Z'),
+    // Bruger lokal Copenhagen-tid til filtrering — matcher MT's rapporter
+    supabase.rpc('get_orders_by_local_date', {
+      p_location_id: location,
+      p_start: start,
+      p_end: end,
+    }),
     supabase.from('sessions_cache').select('*').eq('location_id', location).gte('date', start).lte('date', end),
     supabase.from('employees').select('*, salary_rates(*)').eq('is_active', true),
     supabase.from('settings').select('*').eq('key', 'salary_defaults').single(),
@@ -39,18 +43,18 @@ export async function GET(request: Request) {
   const mrrOther = memberships?.filter(m => !m.membership_name?.includes('30+') && !m.membership_name?.includes('under 30')).reduce((s, m) => s + (m.renewal_rate || 0), 0) || 0
   const totalMRR = mrrOver30 + mrrUnder30 + mrrOther
 
-  // Orders fra cache
+  // Orders fra cache — bruger net_total (total - refunderet) som korrekt omsætning
   const isUnder30 = (summary: string | null) => summary?.includes('under 30') || summary?.includes('under30') || false
-  const ordersOver30 = (orders || []).filter(o => !isUnder30(o.summary)).reduce((s, o) => s + Number(o.total), 0)
-  const ordersUnder30 = (orders || []).filter(o => isUnder30(o.summary)).reduce((s, o) => s + Number(o.total), 0)
-  const totalOrders = (orders || []).reduce((s, o) => s + Number(o.total), 0)
+  const ordersOver30 = (orders || []).filter(o => !isUnder30(o.summary)).reduce((s, o) => s + Number(o.net_total), 0)
+  const ordersUnder30 = (orders || []).filter(o => isUnder30(o.summary)).reduce((s, o) => s + Number(o.net_total), 0)
+  const totalOrders = (orders || []).reduce((s, o) => s + Number(o.net_total), 0)
 
   // Breakdown pr. produkt
   const ordersGrouped = (orders || []).reduce((acc: any, o: any) => {
     const name = o.summary || 'Ukendt'
     if (!acc[name]) acc[name] = { count: 0, total: 0 }
     acc[name].count++
-    acc[name].total += Number(o.total)
+    acc[name].total += Number(o.net_total)
     return acc
   }, {})
 
@@ -59,7 +63,6 @@ export async function GET(request: Request) {
     age_group: name.includes('30+') ? 'over30' : (name.includes('under 30') || name.includes('under30')) ? 'under30' : 'other',
   })).sort((a, b) => b.total - a.total)
 
-  // Split
   // Bruce
   const bruceOver30 = (bruceRates || []).reduce((s, r) => s + ((r.visits_vat || 0) + (r.no_shows_vat || 0)) * r.rate_per_visit, 0)
   const bruceUnder30 = (bruceRates || []).reduce((s, r) => s + ((r.visits_no_vat || 0) + (r.no_shows_no_vat || 0)) * r.rate_per_visit, 0)
