@@ -9,6 +9,7 @@ const supabase = createClient(
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const location = searchParams.get('location') || '48718'
+  const locationName = location === '48718' ? 'Copenhagen' : 'Flatiron'
   const now = new Date()
   const start = searchParams.get('start') || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
   const end = searchParams.get('end') || now.toISOString().split('T')[0]
@@ -19,15 +20,20 @@ export async function GET(request: Request) {
   const [
     { data: memberships },
     { data: orders },
+    { data: orderLines },
     { data: sessions },
     { data: instructors },
     { data: settingsData },
     { data: bruceRates },
   ] = await Promise.all([
     supabase.from('active_memberships').select('*').eq('purchase_location_id', location),
-    // Bruger lokal Copenhagen-tid til filtrering — matcher MT's rapporter
     supabase.rpc('get_orders_by_local_date', {
       p_location_id: location,
+      p_start: start,
+      p_end: end,
+    }),
+    supabase.rpc('get_order_lines_by_local_date', {
+      p_location: locationName,
       p_start: start,
       p_end: end,
     }),
@@ -43,7 +49,7 @@ export async function GET(request: Request) {
   const mrrOther = memberships?.filter(m => !m.membership_name?.includes('30+') && !m.membership_name?.includes('under 30')).reduce((s, m) => s + (m.renewal_rate || 0), 0) || 0
   const totalMRR = mrrOver30 + mrrUnder30 + mrrOther
 
-  // Orders fra cache — bruger net_total (total - refunderet) som korrekt omsætning
+  // Orders — beløb fra orders_cache (net_total)
   type OrderRow = { id: string; total: number; net_total: number; summary: string | null; status: string }
   const orderRows: OrderRow[] = (orders || []) as OrderRow[]
   const isUnder30 = (summary: string | null) => summary?.includes('under 30') || summary?.includes('under30') || false
@@ -51,18 +57,24 @@ export async function GET(request: Request) {
   const ordersUnder30 = orderRows.filter(o => isUnder30(o.summary)).reduce((s, o) => s + Number(o.net_total), 0)
   const totalOrders = orderRows.reduce((s, o) => s + Number(o.net_total), 0)
 
-  // Breakdown pr. produkt
-  const ordersGrouped = orderRows.reduce((acc: any, o: OrderRow) => {
-    const name = o.summary || 'Ukendt'
-    if (!acc[name]) acc[name] = { count: 0, total: 0 }
-    acc[name].count++
-    acc[name].total += Number(o.net_total)
+  // Breakdown pr. produkt — bruger order_lines_cache for præcise enhedstal
+  type LineRow = { product_title: string; quantity: number; line_total: number; refunded: boolean }
+  const lineRows: LineRow[] = (orderLines || []) as LineRow[]
+
+  const ordersGrouped = lineRows.reduce((acc: any, line: LineRow) => {
+    const name = line.product_title || 'Ukendt'
+    const ageGroup = name.includes('30+') ? 'over30' : (name.includes('under 30') || name.includes('under30')) ? 'under30' : 'other'
+    if (!acc[name]) acc[name] = { count: 0, total: 0, age_group: ageGroup }
+    acc[name].count += line.quantity
+    acc[name].total += line.refunded ? 0 : Number(line.line_total)
     return acc
   }, {})
 
   const ordersBreakdown = Object.entries(ordersGrouped).map(([name, d]: [string, any]) => ({
-    name, count: d.count, total: Math.round(d.total),
-    age_group: name.includes('30+') ? 'over30' : (name.includes('under 30') || name.includes('under30')) ? 'under30' : 'other',
+    name,
+    count: d.count,
+    total: Math.round(d.total),
+    age_group: d.age_group,
   })).sort((a, b) => b.total - a.total)
 
   // Bruce
