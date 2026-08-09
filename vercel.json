@@ -1,6 +1,10 @@
 {
   "crons": [
-    { "path": "/api/sync-cache", "schedule": "0 5 * * *" },
-    { "path": "/api/sync-sessions-detail", "schedule": "30 5 * * *" }
+    { "path": "/api/sync-instructors", "schedule": "0 2 * * *" },
+    { "path": "/api/sync-sessions", "schedule": "0 3 * * *" },
+    { "path": "/api/sync-memberships", "schedule": "0 4 * * *" },
+    { "path": "/api/sync-orders", "schedule": "0 5 * * *" },
+    { "path": "/api/sync-order-lines", "schedule": "0 6 * * *" },
+    { "path": "/api/sync-sessions-detail", "schedule": "0 7 * * *" }
   ]
 }
